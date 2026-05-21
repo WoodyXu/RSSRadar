@@ -181,6 +181,21 @@ final class DomainModelTests: XCTestCase {
         XCTAssertEncodedKeys(log, contain: ["created_at", "context"])
     }
 
+    func testUserCorrectionDefaultsAndRoundTripCoding() throws {
+        let correction = UserCorrection(
+            id: "correction-id",
+            correctionType: .addArticleToTopic,
+            topicID: "topic-id",
+            articleID: "article-id",
+            oldValue: nil,
+            newValue: "topic_id=topic-id;article_id=article-id",
+            createdAt: fixedDate
+        )
+
+        XCTAssertEqual(try roundTrip(correction), correction)
+        XCTAssertEncodedKeys(correction, contain: ["correction_type", "topic_id", "article_id", "new_value"])
+    }
+
     func testGeneratedIDsAreUUIDStrings() throws {
         let feed = Feed(title: "Example", url: try XCTUnwrap(URL(string: "https://example.com/rss.xml")))
         let topic = Topic(name: "Topic", description: "Description")

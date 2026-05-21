@@ -143,6 +143,25 @@ final class DatabaseMigrationTests: XCTestCase {
             }
         )
     }
+
+    func testUserCorrectionTypeCheckRejectsInvalidValues() throws {
+        let database = try makeTemporaryDatabase()
+        try database.migrate()
+
+        XCTAssertThrowsError(
+            try database.queue.write { db in
+                try db.execute(
+                    sql: """
+                        INSERT INTO user_corrections (
+                            id, correction_type, created_at
+                        ) VALUES (
+                            'correction-1', 'merge_topics', '2026-05-20T00:00:00Z'
+                        )
+                        """
+                )
+            }
+        )
+    }
 }
 
 private extension DatabaseMigrationTests {

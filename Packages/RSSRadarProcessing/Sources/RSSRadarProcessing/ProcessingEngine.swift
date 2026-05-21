@@ -388,70 +388,12 @@ public actor ProcessingEngine {
     }
 }
 
-public struct ProcessingEngineExecutor: ProcessingJobExecuting, @unchecked Sendable {
-    private let feedScanUseCase: FeedScanUseCase
-    private let articleAnalysisUseCase: ArticleAnalysisUseCase?
-    private let topicAssignmentUseCase: TopicAssignmentUseCase?
-
-    public init(
-        repositories: RSSRadarRepositories,
-        loader: FeedDataLoader = URLSession.shared,
-        articleAnalyzer: (any ArticleAnalyzing)? = nil,
-        topicAssigner: (any TopicAssigning)? = nil
-    ) {
-        feedScanUseCase = FeedScanUseCase(repositories: repositories, loader: loader)
-        if let articleAnalyzer {
-            articleAnalysisUseCase = ArticleAnalysisUseCase(repositories: repositories, analyzer: articleAnalyzer)
-        } else {
-            articleAnalysisUseCase = nil
-        }
-        if let topicAssigner {
-            topicAssignmentUseCase = TopicAssignmentUseCase(repositories: repositories, topicAssigner: topicAssigner)
-        } else {
-            topicAssignmentUseCase = nil
-        }
-    }
-
-    public func execute(job: ProcessingJob) async throws {
-        switch job.jobType {
-        case .fetchFeed:
-            guard let feedID = job.entityID else {
-                throw ProcessingEngineError.missingEntityID(job.id)
-            }
-            _ = try await feedScanUseCase.scanFeed(id: feedID)
-        case .analyzeArticle:
-            guard let articleID = job.entityID else {
-                throw ProcessingEngineError.missingEntityID(job.id)
-            }
-            guard let articleAnalysisUseCase else {
-                throw ProcessingEngineError.unsupportedJobType(job.jobType)
-            }
-            let modelName = job.payload["model_name"] ?? ""
-            guard !modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw ArticleAnalysisUseCaseError.missingModelName
-            }
-            _ = try await articleAnalysisUseCase.analyzeArticle(id: articleID, modelName: modelName)
-        case .assignTopics:
-            guard let topicAssignmentUseCase else {
-                throw ProcessingEngineError.unsupportedJobType(job.jobType)
-            }
-            let articleIDs = (job.payload["article_ids"] ?? "")
-                .split(separator: ",")
-                .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-            let modelName = job.payload["model_name"] ?? ""
-            _ = try await topicAssignmentUseCase.assignTopics(articleIDs: articleIDs, modelName: modelName)
-        case .parseArticle, .generateTopicBrief, .retryFailedJob:
-            throw ProcessingEngineError.unsupportedJobType(job.jobType)
-        }
-    }
-}
-
 public enum ProcessingEngineError: Error, Equatable, LocalizedError {
     case missingEntityID(String)
     case unsupportedJobType(ProcessingJobType)
     case jobNotFound(String)
     case jobCannotBeRetried(String)
+    case invalidPayload(String, String)
 
     public var errorDescription: String? {
         switch self {
@@ -463,6 +405,8 @@ public enum ProcessingEngineError: Error, Equatable, LocalizedError {
             "Processing job was not found: \(jobID)"
         case let .jobCannotBeRetried(jobID):
             "Processing job is not failed and cannot be manually retried: \(jobID)"
+        case let .invalidPayload(jobID, field):
+            "Processing job has invalid payload field \(field): \(jobID)"
         }
     }
 }

@@ -53,6 +53,10 @@ final class DomainEnumTests: XCTestCase {
     func testInvalidOperationLogLevelDoesNotDecode() {
         XCTAssertThrowsError(try decode(OperationLogLevel.self, from: "\"debug\""))
     }
+
+    func testInvalidUserCorrectionTypeDoesNotDecode() {
+        XCTAssertThrowsError(try decode(UserCorrectionType.self, from: "\"merge_topics\""))
+    }
 }
 
 private func decode<Value: Decodable>(_ type: Value.Type, from json: String) throws -> Value {

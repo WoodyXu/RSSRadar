@@ -31,6 +31,10 @@ let package = Package(
         .library(
             name: "RSSRadarProcessing",
             targets: ["RSSRadarProcessing"]
+        ),
+        .library(
+            name: "RSSRadarExport",
+            targets: ["RSSRadarExport"]
         )
     ],
     dependencies: [
@@ -95,6 +99,14 @@ let package = Package(
             ],
             path: "Packages/RSSRadarProcessing/Sources/RSSRadarProcessing"
         ),
+        .target(
+            name: "RSSRadarExport",
+            dependencies: [
+                "RSSRadarCore",
+                "RSSRadarProcessing"
+            ],
+            path: "Packages/RSSRadarExport/Sources/RSSRadarExport"
+        ),
         .testTarget(
             name: "RSSRadarCoreTests",
             dependencies: ["RSSRadarCore"],
@@ -135,6 +147,14 @@ let package = Package(
             resources: [
                 .process("Fixtures")
             ]
+        ),
+        .testTarget(
+            name: "RSSRadarExportTests",
+            dependencies: [
+                "RSSRadarExport",
+                "RSSRadarProcessing"
+            ],
+            path: "Tests/RSSRadarExportTests"
         )
     ]
 )

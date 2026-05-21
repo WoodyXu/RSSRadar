@@ -338,6 +338,7 @@ final class RepositoryTests: XCTestCase {
         try repositories.operationLogs.delete(id: "log-1")
         XCTAssertNil(try repositories.operationLogs.fetch(id: "log-1"))
     }
+
 }
 
 private extension RepositoryTests {

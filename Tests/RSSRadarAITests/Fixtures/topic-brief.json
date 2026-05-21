@@ -1,0 +1,28 @@
+{
+  "current_takeaway": "Claude Code 在大型 Swift 代码库中的采用正在从试验转向团队级流程。",
+  "latest_changes": [
+    "团队开始把多文件编辑和新人 onboarding 纳入 Claude Code 的正式评估。"
+  ],
+  "timeline": [
+    {
+      "date": "2026-05-20",
+      "title": "团队扩大 Claude Code 使用范围",
+      "description": "文章记录团队把 Claude Code 用于大型 Swift 项目的多文件修改。"
+    }
+  ],
+  "viewpoints": [
+    "支持者认为 Claude Code 能缩短熟悉大型代码库的时间，但仍需要人工 review 控制风险。"
+  ],
+  "evidence": [
+    {
+      "text": "文章提到团队在大型 Swift 代码库中使用 Claude Code 后 setup 时间减少 30%。",
+      "article_id": "article-1"
+    }
+  ],
+  "questions_to_watch": [
+    "这种效率提升是否能在更多团队和更复杂模块中复现？"
+  ],
+  "related_article_ids": [
+    "article-1"
+  ]
+}

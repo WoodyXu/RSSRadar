@@ -33,6 +33,7 @@ public final class RSSRadarRepositories {
     public let appSettings: AppSettingsRepository
     public let processingJobs: ProcessingJobRepository
     public let operationLogs: OperationLogRepository
+    public let userCorrections: UserCorrectionRepository
 
     private let database: RSSRadarDatabase
 
@@ -48,6 +49,7 @@ public final class RSSRadarRepositories {
         appSettings = AppSettingsRepository(access: access)
         processingJobs = ProcessingJobRepository(access: access)
         operationLogs = OperationLogRepository(access: access)
+        userCorrections = UserCorrectionRepository(access: access)
     }
 
     public func performTransaction(_ body: (RSSRadarRepositoryTransaction) throws -> Void) throws {
@@ -67,6 +69,7 @@ public final class RSSRadarRepositoryTransaction {
     public let appSettings: AppSettingsRepository
     public let processingJobs: ProcessingJobRepository
     public let operationLogs: OperationLogRepository
+    public let userCorrections: UserCorrectionRepository
 
     init(database: Database) {
         let access = DatabaseAccess.database(database)
@@ -79,5 +82,6 @@ public final class RSSRadarRepositoryTransaction {
         appSettings = AppSettingsRepository(access: access)
         processingJobs = ProcessingJobRepository(access: access)
         operationLogs = OperationLogRepository(access: access)
+        userCorrections = UserCorrectionRepository(access: access)
     }
 }

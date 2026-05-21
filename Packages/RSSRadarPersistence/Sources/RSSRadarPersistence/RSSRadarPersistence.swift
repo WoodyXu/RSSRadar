@@ -65,7 +65,8 @@ enum InitialSchemaMigration {
         "topic_briefs",
         "app_settings",
         "processing_jobs",
-        "operation_logs"
+        "operation_logs",
+        "user_corrections"
     ]
 
     static func apply(to db: Database) throws {
@@ -78,6 +79,7 @@ enum InitialSchemaMigration {
         try db.execute(sql: appSettingsTableSQL)
         try db.execute(sql: processingJobTableSQL)
         try db.execute(sql: operationLogTableSQL)
+        try db.execute(sql: userCorrectionTableSQL)
         try createIndexes(on: db)
     }
 
@@ -91,6 +93,8 @@ enum InitialSchemaMigration {
         try db.execute(sql: "CREATE INDEX idx_processing_jobs_status_schedule ON processing_jobs(status, scheduled_at)")
         try db.execute(sql: "CREATE INDEX idx_processing_jobs_entity ON processing_jobs(entity_type, entity_id)")
         try db.execute(sql: "CREATE INDEX idx_operation_logs_created_at ON operation_logs(created_at)")
+        try db.execute(sql: "CREATE INDEX idx_user_corrections_topic_id ON user_corrections(topic_id)")
+        try db.execute(sql: "CREATE INDEX idx_user_corrections_article_id ON user_corrections(article_id)")
     }
 
     private static let feedTableSQL = """
@@ -250,6 +254,24 @@ enum InitialSchemaMigration {
             level TEXT NOT NULL CHECK (level IN ('info', 'warning', 'error')),
             message TEXT NOT NULL,
             context_json TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+
+    private static let userCorrectionTableSQL = """
+        CREATE TABLE user_corrections (
+            id TEXT PRIMARY KEY,
+            correction_type TEXT NOT NULL CHECK (
+                correction_type IN (
+                    'remove_article_from_topic',
+                    'add_article_to_topic',
+                    'create_topic_from_article'
+                )
+            ),
+            topic_id TEXT REFERENCES topics(id) ON DELETE SET NULL,
+            article_id TEXT REFERENCES articles(id) ON DELETE SET NULL,
+            old_value TEXT,
+            new_value TEXT,
             created_at TEXT NOT NULL
         )
         """

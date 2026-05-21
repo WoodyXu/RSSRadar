@@ -899,3 +899,237 @@ Verification:
 - User verified this step after local testing.
 
 Stop point: next step is implementation-plan Step 24, implement user correction records. Do not start Step 24 until explicitly requested.
+
+## 2026-05-21 - Step 24: User correction records
+
+Completed implementation-plan Step 24.
+
+- Added `UserCorrection` and `UserCorrectionType` in `RSSRadarCore`.
+- Added `user_corrections` to the v1 SQLite schema with CHECK constraints for the three MVP correction types:
+  - remove article from topic
+  - add article to topic
+  - create topic from article
+- Added `UserCorrectionRepository` and exposed it through `RSSRadarRepositories` and `RSSRadarRepositoryTransaction`.
+- Added `UserCorrectionUseCase` in `RSSRadarProcessing` as the use-case boundary for user correction workflows.
+- Implemented remove-article-from-topic:
+  - verifies the topic, article, and existing relationship
+  - deletes the `(topic_id, article_id)` relationship
+  - records a `remove_article_from_topic` correction in the same transaction
+- Implemented add-article-to-existing-topic:
+  - verifies the topic and article
+  - creates/upserts a manual `TopicArticle` relationship with confidence `1`
+  - records an `add_article_to_topic` correction in the same transaction
+- Implemented create-topic-from-article:
+  - validates user-provided topic name, description, entities, and reason
+  - creates an `active` topic
+  - links the seed article to the new topic
+  - records a `create_topic_from_article` correction in the same transaction
+- Each correction result returns a flag and message indicating the user can regenerate TopicBrief after the correction.
+- Kept Step 25 out of scope:
+  - no TopicBrief generation
+  - no TopicBrief cache reads/writes
+  - no AI call for full or preview brief content
+  - no `generate_topic_brief` job execution
+
+Verification:
+
+- User verified this step after local testing.
+- `make verify` passed and ran SwiftLint plus `swift test`.
+- SwiftLint reported 0 violations across 75 Swift files.
+- `swift test` passed with 127 tests and 0 failures.
+
+Stop point: next step is implementation-plan Step 25, implement TopicBrief generation and caching. Do not start Step 25 until explicitly requested.
+
+## 2026-05-21 - Step 25: TopicBrief generation and caching
+
+Completed implementation-plan Step 25.
+
+- Added `TopicBriefGenerating`, `TopicBriefSourceArticle`, `TopicBriefGenerationService`, and `TopicBriefValidationError` in `RSSRadarAI`.
+- Implemented full active-topic TopicBrief generation and candidate-topic preview generation through the existing AI Provider and PromptTemplate boundaries:
+  - active topics use `TopicBriefPrompt.md`
+  - candidate topics use `CandidateTopicPreviewPrompt.md`
+  - TopicBrief output defaults to Chinese through the built-in prompts
+- Implemented TopicBrief AI JSON parsing and validation:
+  - validates non-empty `current_takeaway`
+  - validates evidence text and evidence `article_id`
+  - rejects evidence or related article IDs not present in the provided source articles
+  - normalizes string arrays
+  - converts `YYYY-MM-DD` timeline dates when present
+- Populated `TopicBriefEvidence` source metadata from local articles and feeds instead of trusting AI for titles, source names, URLs, or published dates.
+- Added `TopicBriefGenerationUseCase` in `RSSRadarProcessing` as the repository-backed generation and cache boundary.
+- Implemented cache-first behavior: if `(topic_id, brief_type)` already exists, `generateIfNeeded(...)` returns the cached `TopicBrief` without calling AI again.
+- Enforced Step 25 topic/brief rules:
+  - active topics can generate only full briefs
+  - candidate topics can generate only preview briefs
+  - ignored and archived topics are rejected for TopicBrief generation
+- Wired `ProcessingEngineExecutor` to execute `generate_topic_brief` jobs when a `TopicBriefGenerating` implementation is explicitly injected.
+- Split `ProcessingEngineExecutor` into its own file to keep `ProcessingEngine.swift` focused on queue scheduling and retry state transitions.
+- Added AI tests and fixture:
+  - `Tests/RSSRadarAITests/Fixtures/topic-brief.json`
+  - `TopicBriefGenerationServiceTests`
+- Added processing integration tests:
+  - active full brief generation and cache reuse
+  - candidate preview-only enforcement
+  - `generate_topic_brief` job execution through `ProcessingEngineExecutor`
+- Kept Step 26 out of scope:
+  - no manual regenerate failure-protection workflow
+  - no explicit "preserve old brief on failed regeneration" behavior
+  - no UI error display for regeneration failures
+
+Verification:
+
+- User verified this step after local testing.
+- `swift test --filter RSSRadarAITests` passed with 22 tests and 0 failures.
+- `swift test --filter RSSRadarProcessingTests` passed with 34 tests and 0 failures.
+- `make verify` passed and ran SwiftLint plus `swift test`.
+- SwiftLint reported 0 violations across 80 Swift files.
+- `swift test` passed with 133 tests and 0 failures.
+
+Stop point: next step is implementation-plan Step 26, implement TopicBrief failure protection. Do not start Step 26 until explicitly requested.
+
+## 2026-05-21 - Step 26: TopicBrief failure protection
+
+Completed implementation-plan Step 26.
+
+- Added an explicit manual regeneration path to `TopicBriefGenerationUseCase`:
+  - `generateIfNeeded(...)` remains cache-first and continues to avoid unnecessary AI calls.
+  - `regenerate(...)` bypasses the cache for user-triggered regeneration.
+- Preserved old TopicBrief cache on regeneration failure:
+  - the use case only writes the newly generated brief after the generator returns successfully.
+  - if AI generation or validation throws, the existing `(topic_id, brief_type)` cache remains unchanged.
+- Added failure logging for manual regeneration:
+  - failed manual regeneration writes an error-level `operation_logs` row.
+  - log context records only non-sensitive identifiers: `topic_id` and `brief_type`.
+  - the original error is rethrown so later UI code can display the failure.
+- Kept Step 27 out of scope:
+  - no Today page data source
+  - no topic ranking score
+  - no aggregation of scan status, important topics, candidate topics, or active topic updates
+
+Verification:
+
+- User verified this step after local testing.
+- `swift test --filter TopicBriefGenerationUseCaseTests` passed with 4 tests and 0 failures.
+- `make verify` passed and ran SwiftLint plus `swift test`.
+- SwiftLint reported 0 violations across 80 Swift files.
+- `swift test` passed with 134 tests and 0 failures.
+
+Stop point: next step is implementation-plan Step 27, implement Today page data source. Do not start Step 27 until explicitly requested.
+
+## 2026-05-21 - Step 27: Today page data source
+
+Completed implementation-plan Step 27.
+
+- Added `TodayPageDataSource` in `RSSRadarProcessing` as the use-case/data-source boundary for the Today page.
+- Implemented Today snapshot aggregation:
+  - scan status from feeds, processing jobs, articles, and recent operation logs
+  - today's important topics from `active` topics only
+  - new candidate topics from `candidate` topics only
+  - tracked topic updates from active topics with today's new relationships or latest changes
+- Implemented the documented topic ranking inputs:
+  - recency
+  - topic importance
+  - today's new article count
+  - active topic bonus
+- Added stable sorting tie-breakers by score, latest activity, topic name, and topic ID so Today ordering remains deterministic.
+- Included compact Today topic fields for later UI work:
+  - topic
+  - cached full/preview brief when available
+  - current takeaway
+  - latest changes
+  - new and total related article counts
+  - primary source names
+  - latest activity timestamp
+  - ranking score
+- Kept Step 28 out of scope:
+  - no Topic Detail data source
+  - no Topic Detail article/evidence expansion
+  - no UI wiring
+
+Verification:
+
+- User verified this step after local testing.
+- `swift test --filter TodayPageDataSourceTests` passed with 3 tests and 0 failures.
+- `make verify` passed and ran SwiftLint plus `swift test`.
+- SwiftLint reported 0 violations across 82 Swift files.
+- `swift test` passed with 137 tests and 0 failures.
+
+Stop point: next step is implementation-plan Step 28, implement Topic Detail data source. Do not start Step 28 until explicitly requested.
+
+## 2026-05-21 - Step 28: Topic Detail data source
+
+Completed implementation-plan Step 28.
+
+- Added `TopicDetailDataSource` in `RSSRadarProcessing` as the use-case/data-source boundary for Topic Detail.
+- Implemented Topic Detail snapshot aggregation:
+  - topic title and status through the full `Topic`
+  - cached `TopicBrief` content for current takeaway, latest changes, timeline, viewpoints, evidence, questions to watch, and related article IDs
+  - evidence expansion back to local source article, source feed name, article analysis summary, and topic contribution type
+  - related article rows with title, source name, published date, AI summary, contribution type, relationship reason, confidence, and original URL
+- Added default brief selection for Topic Detail:
+  - candidate topics default to preview brief
+  - other topic statuses default to full brief
+- Kept the data source read-only:
+  - no AI generation
+  - no TopicBrief regeneration
+  - no scan or processing job creation
+  - no Markdown rendering or export behavior
+- Added Topic Detail integration tests using temporary SQLite databases and full TopicBrief fixtures.
+- Kept Step 29 out of scope:
+  - no Markdown copy
+  - no Markdown file export
+  - no export renderer
+
+Verification:
+
+- User verified this step after local testing.
+- `swift test --filter TopicDetailDataSourceTests` passed with 4 tests and 0 failures.
+- `make verify` passed and ran SwiftLint plus `swift test`.
+- SwiftLint reported 0 violations across 84 Swift files.
+- `swift test` passed with 141 tests and 0 failures.
+
+Stop point: next step is implementation-plan Step 29, implement Markdown copy and file export. Do not start Step 29 until explicitly requested.
+
+## 2026-05-21 - Step 29: Markdown copy and file export
+
+Completed implementation-plan Step 29.
+
+- Added a dedicated `RSSRadarExport` library target to keep Markdown rendering and export behavior out of UI, Processing, Persistence, Feeds, and AI modules.
+- Added `TopicBriefMarkdownRenderer` to render a `TopicDetailSnapshot` into Markdown for the current topic.
+- Markdown output includes the required Step 29 sections:
+  - topic name
+  - generated time
+  - current takeaway
+  - latest changes
+  - timeline
+  - viewpoints
+  - evidence with source article links
+  - questions to watch
+  - related article links with source, published time, contribution type, and AI summary when available
+- Added `TopicBriefMarkdownExportService` to support:
+  - copying rendered Markdown through an injectable clipboard boundary
+  - exporting the current topic as one `.md` file
+- Added `SystemMarkdownClipboardWriter` using macOS `NSPasteboard` for the real clipboard implementation.
+- Kept file export intentionally narrow:
+  - `.md` file paths only
+  - no PDF export
+  - no Notion sync
+  - no Obsidian sync
+  - no folder auto-sync
+- Added `RSSRadarExportTests` with fixed TopicBrief and Article data to verify Markdown rendering, clipboard boundary behavior, file writing, missing-cache errors, and non-`.md` path rejection.
+- Did not implement Step 30:
+  - no Onboarding flow
+  - no UI wiring for copy/export buttons
+  - no OPML/manual add onboarding screens
+  - no AI Provider setup UI
+  - no first-scan onboarding flow
+
+Verification:
+
+- User verified this step after local testing.
+- `swift test --filter RSSRadarExportTests` passed with 5 tests and 0 failures.
+- `make verify` passed and ran SwiftLint plus `swift test`.
+- SwiftLint reported 0 violations across 88 Swift files.
+- `swift test` passed with 146 tests and 0 failures.
+
+Stop point: next step is implementation-plan Step 30, implement Onboarding flow. Do not start Step 30 until explicitly requested.
