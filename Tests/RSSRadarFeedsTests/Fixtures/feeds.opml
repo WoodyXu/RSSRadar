@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>RSSRadar Import Fixture</title>
+  </head>
+  <body>
+    <outline text="Technology">
+      <outline text="AI Research" title="AI Research" xmlUrl="https://example.com/ai.xml" htmlUrl="https://example.com/ai" />
+      <outline text="AI Research Duplicate" xmlUrl="https://example.com/ai.xml" htmlUrl="https://example.com/ai-duplicate" />
+      <outline text="Title Fallback" xmlUrl="https://fallback.example.com/rss.xml" />
+      <outline xmlUrl="https://untitled.example.com/feed.xml" />
+    </outline>
+    <outline text="Missing XML URL" htmlUrl="https://missing.example.com" />
+    <outline text="Broken URL" xmlUrl="notaurl" />
+  </body>
+</opml>

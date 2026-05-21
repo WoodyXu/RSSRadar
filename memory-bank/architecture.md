@@ -10,24 +10,198 @@
 - 写 UI 前必须读取仓库中的 `DESIGN.md`。
 - MVP 初期不把 app icon、完整菜单等 macOS 打磨项作为核心阻塞项。
 
+### 当前文件职责
+
+- `.gitignore`：忽略本地 macOS、SwiftPM、Xcode 构建与用户态文件，避免 `.DS_Store`、`.build/`、`.swiftpm/`、DerivedData 等进入版本控制。
+- `.swiftlint.yml`：SwiftLint 本地规则配置，只覆盖当前 Swift Package manifest、app target、internal packages 和 tests；不扫描构建产物。规则保持基础工程质量约束，不承担格式化或业务架构检查。
+- `Makefile`：开发者本地常用命令入口。`make lint` 调用 `Scripts/lint.sh`，`make test` 调用 `swift test`，`make verify` 串联 lint 与测试。
+- `Package.swift`：Swift Package 根 manifest，声明 macOS 14.0+、`RSSRadar` executable product、内部 library products、target 依赖关系和测试 target。当前外部包依赖包含 Step 4 所需的 GRDB.swift、Step 8 所需的 FeedKit、Step 12 所需的 SwiftSoup；`RSSRadarPersistence` 额外链接 Apple `Security` framework 以使用 macOS Keychain；`RSSRadarAI` 处理 `Prompts/` 资源目录。当前测试 target 包含 Core、Persistence、Feeds、AI、Processing 各模块测试。后续依赖必须按实施计划逐步加入。
+- `Package.resolved`：SwiftPM 依赖锁定文件。当前锁定 `GRDB.swift` 到 `6.29.3`、`FeedKit` 到 `9.1.2`、`SwiftSoup` 到 `2.13.5`，保证数据库层、feed 解析层和正文抽取层构建可复现。
+- `RSSRadarApp/App/RSSRadarApp.swift`：macOS SwiftUI app 入口，负责创建主 `WindowGroup` 并挂载根视图。
+- `RSSRadarApp/Views/AppRootView.swift`：当前最小 app shell，使用 `NavigationSplitView` 建立 Today、Topics、Feeds、Processing、Settings 的主导航占位。这里只承载 UI 组合，不应直接访问 SQLite、AI Provider 或 RSS 抓取实现。
+- `RSSRadarApp/ViewModels/RSSRadarSection.swift`：主导航 section 枚举，集中维护导航项 ID、标题和系统图标。后续页面 ViewModel 应继续放在 `RSSRadarApp/ViewModels/` 下。
+- `RSSRadarApp/Resources/.gitkeep`：保留 app target 的资源目录，后续放置 app UI 资源。AI Prompt 模板不放在 app resources 中，而是由 `RSSRadarAI` target 自己处理。
+- `Packages/RSSRadarCore/Sources/RSSRadarCore/CoreModule.swift`：Core 模块轻量标识文件，保留 `RSSRadarCore.moduleName` 供基础模块加载测试使用，不承载业务逻辑。
+- `Packages/RSSRadarCore/Sources/RSSRadarCore/DomainID.swift`：领域对象 ID 生成入口。当前统一生成 UUID string，保持产品文档和后续 SQLite text primary key 设计一致。
+- `Packages/RSSRadarCore/Sources/RSSRadarCore/Feed.swift`：RSS 源领域模型与 `FeedStatus`。覆盖源标题、RSS URL、站点 URL、抓取状态、抓取进度时间戳、错误信息和创建/更新时间。
+- `Packages/RSSRadarCore/Sources/RSSRadarCore/Article.swift`：文章领域模型，以及 `ArticleStatus`、`ArticleContentSource`。覆盖 feed 归属、标题、URL、作者、发布时间、RSS 摘要、正文、正文来源、处理状态、重要性分数和错误信息。
+- `Packages/RSSRadarCore/Sources/RSSRadarCore/ArticleAnalysis.swift`：单篇文章 AI 结构化理解模型，以及 `ArticleContentType`。保存摘要、关键点、实体、判断、事件、指标、可能主题、重要性分数、模型名和生成时间。
+- `Packages/RSSRadarCore/Sources/RSSRadarCore/Topic.swift`：主题和主题文章关系模型。`Topic` 表示 candidate/active/ignored/archived 主题，保留 AI 原始命名与用户可编辑命名；`TopicArticle` 表示文章归属主题的置信度、理由和贡献类型。
+- `Packages/RSSRadarCore/Sources/RSSRadarCore/TopicBrief.swift`：主题情报页缓存模型，以及完整/预览类型和嵌套结构。覆盖当前结论、最近变化、时间线、观点分歧、关键证据、观察问题、相关文章 ID、模型名和生成时间。
+- `Packages/RSSRadarCore/Sources/RSSRadarCore/AppSettings.swift`：应用设置领域模型，以及 AI Provider 和扫描模式枚举。只保存 provider、base URL、模型名、数据库路径、Keychain account 标识、扫描频率和处理上限；不保存 API Key 明文。
+- `Packages/RSSRadarCore/Sources/RSSRadarCore/ProcessingJob.swift`：本地可恢复处理任务领域模型，以及任务类型、实体类型和状态枚举。覆盖 feed 抓取、文章解析、文章分析、主题归类、TopicBrief 生成和失败任务重试等队列任务，保存优先级、attempt、max attempts、调度时间、开始/完成时间和非敏感错误信息。
+- `Packages/RSSRadarCore/Sources/RSSRadarCore/OperationLog.swift`：Processing 页面用户可见日志领域模型，以及 info/warning/error 级别枚举。日志 context 当前使用轻量 `[String: String]` JSON 字典，便于展示 job/feed/article/topic 等关联信息；不得保存 API Key 等 secret。
+- `Packages/RSSRadarPersistence/Sources/RSSRadarPersistence/RSSRadarPersistence.swift`：持久化模块 GRDB SQLite 数据库入口、数据库目录创建、SQLite PRAGMA 配置和 v1 schema migration。`RSSRadarDatabase` 持有 internal `DatabaseQueue`，外部 app/UI 代码必须通过 Repository 层访问数据。`InitialSchemaMigration` 负责创建 `feeds`、`articles`、`article_analyses`、`topics`、`topic_articles`、`topic_briefs`、`app_settings`、`processing_jobs`、`operation_logs` 及基础索引。
+- `Packages/RSSRadarPersistence/Sources/RSSRadarPersistence/DatabaseAccess.swift`：Repository 层访问数据库的内部适配器。它把普通 `DatabaseQueue` 读写和事务中的 `Database` 读写统一成同一接口，并提供 `RSSRadarRepositories` 聚合入口与 `RSSRadarRepositoryTransaction` 原子事务上下文。聚合入口当前暴露 feeds、articles、articleAnalyses、topics、topicArticles、topicBriefs、appSettings、processingJobs 和 operationLogs repository。
+- `Packages/RSSRadarPersistence/Sources/RSSRadarPersistence/DatabaseCoding.swift`：持久化层共享编码/解码工具。负责 ISO8601 text 时间转换、JSON TEXT 字段转换、URL/string 转换、整数/浮点必填列读取和 GRDB `Row` 必填字段读取错误封装；同时定义 repository 层通用错误，包括敏感日志内容拒写错误。
+- `Packages/RSSRadarPersistence/Sources/RSSRadarPersistence/FeedRepository.swift`：`Feed` CRUD Repository。支持按 ID 读取、全量列表、按 `FeedStatus` 查询、保存/upsert 和删除；删除 feed 依赖数据库外键级联清理 articles、analyses 和关系数据。
+- `Packages/RSSRadarPersistence/Sources/RSSRadarPersistence/ArticleRepository.swift`：`Article` CRUD Repository。支持按 ID、feed、状态查询，保存/upsert 和删除；只负责文章表读写，不执行 RSS 抓取、正文抽取或 AI 分析。
+- `Packages/RSSRadarPersistence/Sources/RSSRadarPersistence/ArticleAnalysisRepository.swift`：`ArticleAnalysis` Repository。按 `article_id` 唯一约束 upsert，一篇文章当前只保留一份稳定分析结果；负责 key points、entities、claims、events、metrics、possible topics 等数组字段的 JSON TEXT 映射。
+- `Packages/RSSRadarPersistence/Sources/RSSRadarPersistence/TopicRepository.swift`：`Topic` Repository。支持按 ID、状态查询、保存/upsert、删除和 `(status, normalized_name)` 查询；保存时统一计算 `normalized_name`，用于后续 candidate topic 同状态去重。
+- `Packages/RSSRadarPersistence/Sources/RSSRadarPersistence/TopicArticleRepository.swift`：`TopicArticle` 关系 Repository。基于 `(topic_id, article_id)` 复合主键 upsert，支持按主题、按文章查询和删除单条关系；用于一篇文章归入多个主题的持久化边界。
+- `Packages/RSSRadarPersistence/Sources/RSSRadarPersistence/TopicBriefRepository.swift`：`TopicBrief` 缓存 Repository。基于 `(topic_id, brief_type)` 唯一约束 upsert，保证同一主题的 full/preview brief 各自只有一个当前缓存版本；负责 latest changes、timeline、viewpoints、evidence、questions 和 related article IDs 的 JSON TEXT 映射。
+- `Packages/RSSRadarPersistence/Sources/RSSRadarPersistence/AppSettingsRepository.swift`：`AppSettings` singleton Repository。读取空库时返回领域默认值但不产生写入副作用；保存时以 `id = 'default'` upsert `app_settings` 单行。只持久化 provider、base URL、模型名、数据库路径、Keychain account 标识、扫描模式、扫描间隔、处理上限和 AI timeout，不保存 API Key 明文。
+- `Packages/RSSRadarPersistence/Sources/RSSRadarPersistence/KeychainAPIKeyStore.swift`：macOS Keychain API Key 存储边界。使用 generic password item，以固定 service 和 opaque account identifier 定位 secret；支持保存、读取、替换和删除 API Key。错误与校验逻辑不得包含 API Key 明文，调用方应只把 account identifier 写入 `AppSettings`。
+- `Packages/RSSRadarPersistence/Sources/RSSRadarPersistence/ProcessingJobRepository.swift`：`ProcessingJob` Repository。支持任务 save/upsert、按 ID 读取、全量列表、按状态查询、按 `pending + scheduled_at <= now` 查询 ready jobs、状态更新时间戳、retry 状态更新、异常退出恢复和删除。ready-job 查询按 priority 降序、scheduled/created 时间升序排序，供 `ProcessingEngine` 有限并发调度使用；retry 状态更新只负责持久化 attempt/status/scheduled/error/timestamps，不决定业务退避策略，也不执行任务本身。异常退出恢复只把遗留 `running` job 改回 `pending` 并清理 stale started/finished timestamps，不增加 `attempt_count`。
+- `Packages/RSSRadarPersistence/Sources/RSSRadarPersistence/OperationLogRepository.swift`：`OperationLog` Repository。支持日志 save/upsert、按 ID 读取、全量列表、最近日志查询和删除。写入前用保守 marker 检查拒绝明显 secret 内容，例如 `api_key`、`Authorization`、`Bearer` 和 `sk-` key 形态；后续调用方仍应在业务边界主动传入脱敏消息。
+- `Packages/RSSRadarFeeds/Sources/RSSRadarFeeds/RSSRadarFeeds.swift`：RSS feed 手动添加入口。定义 `FeedDataLoader` 以便用 URLSession 或测试 fixture 加载 feed 数据，定义 `FeedStore` 作为保存边界，`ManualFeedAddService` 负责校验 HTTP/HTTPS URL、抓取 feed 数据、调用 metadata parser、生成 `Feed` 状态并可选保存。该文件只处理 feed 元信息，不写文章、不做 OPML、不推进文章处理进度。
+- `Packages/RSSRadarFeeds/Sources/RSSRadarFeeds/FeedMetadataParser.swift`：FeedKit 解析适配器。把 RSS、Atom、JSON Feed 解析结果标准化为标题、站点 URL 和是否有文章三类元信息；缺标题、HTTP 失败或解析失败会转成明确错误，供手动添加流程保存 `error` 状态。
+- `Packages/RSSRadarFeeds/Sources/RSSRadarFeeds/FeedArticleParser.swift`：FeedKit 文章条目解析适配器。把 RSS item、Atom entry、JSON Feed item 标准化为内部 `FeedArticleCandidate`，只提取标题、URL、作者、发布时间、RSS 摘要和 feed 内 full content；不访问数据库、不做文章去重、不抓网页正文。
+- `Packages/RSSRadarFeeds/Sources/RSSRadarFeeds/FeedScanService.swift`：单个 feed 扫描服务。通过 `FeedDataLoader` 抓取 feed 数据，调用 `FeedArticleParser` 转为 `Article`，执行新源最多 20 篇、老源按 `last_processed_article_published_at` 过滤、无发布时间不推进进度等规则，然后调用 `ArticleContentExtractionService` 填充正文并返回待保存文章与更新后的 `Feed`。该服务不持有 Repository，不创建 processing job；跨已有库文章的去重由 `FeedScanUseCase` 注入既有文章后完成。
+- `Packages/RSSRadarFeeds/Sources/RSSRadarFeeds/ArticleContentExtractionService.swift`：文章正文抽取与降级服务。优先使用 RSS full content，其次用 `FeedDataLoader` 抓网页 HTML 并通过 SwiftSoup 轻量抽取正文，失败时降级为 RSS summary。该文件还包含内部 `WebArticleExtractor`，负责移除导航/脚本/页眉页脚等噪声、按正文选择器和段落聚合抽取文本、拒绝过短正文。它不访问数据库、不创建任务、不把抽取失败升级为阻塞性错误。
+- `Packages/RSSRadarFeeds/Sources/RSSRadarFeeds/ArticleDeduplicator.swift`：文章去重规则组件。对文章 URL 做基础 canonicalization（scheme/host lowercase、移除 fragment、移除常见 tracking 参数、排序保留 query 参数），并基于 canonical URL 全局去重；标题相似度只在同一 feed 内比较，使用 normalized title token Jaccard 和编辑距离作为轻量规则。该组件不访问数据库、不抓网络、不改变 `Article` 内容，只返回保留的文章列表。
+- `Packages/RSSRadarFeeds/Sources/RSSRadarFeeds/OPMLImportService.swift`：OPML 导入边界。使用 Foundation `XMLParser` 解析 `outline` 的 `text`、`title`、`xmlUrl`、`htmlUrl`，把有效 HTTP/HTTPS `xmlUrl` 转为 `Feed`，并通过 `OPMLFeedStore` 可选保存。该服务负责分组 outline 展开、标题回退、`htmlUrl` 到 `siteURL` 映射、现有库和本次文档内重复源跳过，以及缺失/非法 `xmlUrl` 错误记录；不抓取 feed 内容、不创建 Article、不推进抓取进度。
+- `Packages/RSSRadarAI/Sources/RSSRadarAI/RSSRadarAI.swift`：AI 模块轻量标识文件，依赖 `RSSRadarCore`，保留 `RSSRadarAI.moduleName` 供基础模块加载测试使用；实际 AI Provider 请求、Prompt 管理和 JSON 校验应放在同目录的专门文件中。
+- `Packages/RSSRadarAI/Sources/RSSRadarAI/AIProvider.swift`：AI Provider 抽象与共享请求模型。定义 `AIProvider` 协议、`AIProviderRequest`、`AIProviderResponse`、`AIMessage`、`AIProviderConfiguration` 和 `AIProviderError`。该文件只描述 provider 边界、默认 base URL 和统一错误语义，不直接访问 Keychain、数据库、processing jobs 或 prompt 资源。
+- `Packages/RSSRadarAI/Sources/RSSRadarAI/URLSessionAIProvider.swift`：基于 URLSession 的 AI Provider 实现。支持 OpenAI-compatible、Anthropic 和 Custom Base URL；OpenAI-compatible 与 Custom 使用 Chat Completions `/chat/completions` 请求，Anthropic 使用 Messages `/v1/messages` 请求。该文件负责 HTTP 请求构造、超时设置、响应解码和网络/取消/HTTP 状态错误映射；不保存 API Key，不写 operation logs，不解析业务 JSON 为 `ArticleAnalysis`。
+- `Packages/RSSRadarAI/Sources/RSSRadarAI/PromptTemplateStore.swift`：AI Prompt 管理边界。定义 `PromptTemplateKind`、`PromptTemplate`、`PromptTemplateStore` 和 `PromptTemplateError`，从 SwiftPM `.module` resource bundle 加载内置 Markdown 模板，并提供简单 `{{variable}}` 渲染。渲染前会用保守 marker 拒绝明显敏感输入，例如 API key 标签、authorization/bearer header、`x-api-key` 和 `sk-` key 形态；它不调用 AI Provider、不访问数据库、不解析 AI JSON。
+- `Packages/RSSRadarAI/Sources/RSSRadarAI/ArticleAnalysisService.swift`：单篇文章分析服务。定义 `ArticleAnalyzing` 协议、`ArticleAnalysisService` 和 `ArticleAnalysisValidationError`；服务负责加载文章分析 Prompt、渲染文章输入、调用注入的 `AIProvider`、解析成功 JSON、校验 summary 与 `importance_score` 范围、解码 `ArticleContentType`、归一化字符串数组，并返回 `ArticleAnalysis`。它不访问数据库、不读取 Keychain、不写 processing job 或 operation log；无效 JSON、缺字段、非法枚举和空关键字段只抛出校验错误，文章状态流转由 Processing 层处理。
+- `Packages/RSSRadarAI/Sources/RSSRadarAI/TopicAssignmentService.swift`：批量主题生成与匹配服务。定义 `TopicAssigning` 协议、`TopicAssignmentService`、`TopicAssignmentResult`、`TopicAssignment`、`NewTopicCandidate` 和 `TopicAssignmentValidationError`；服务负责加载主题归类 Prompt、把一批 `ArticleAnalysis` 与已有 `Topic` 渲染为 JSON 输入、调用注入的 `AIProvider`、解析 assignments JSON、校验 article/topic 引用、confidence、reason、contribution type 和新主题字段，并用本地最小规则拒绝宽泛主题名。它不访问数据库、不创建 `Topic`/`TopicArticle`、不读取 Keychain；持久化和文章状态流转由 Processing 层处理。
+- `Packages/RSSRadarAI/Sources/RSSRadarAI/Prompts/ArticleAnalysisPrompt.md`：单篇文章分析内置模板。要求模型基于标题、来源、发布时间、URL、RSS 摘要和正文返回结构化 JSON，字段覆盖 summary、key_points、entities、claims、events、metrics、content_type、possible_topics 和 importance_score；由 `ArticleAnalysisService` 在 Step 19 成功路径中加载使用。
+- `Packages/RSSRadarAI/Sources/RSSRadarAI/Prompts/TopicAssignmentPrompt.md`：主题归类内置模板。要求模型基于文章分析批次和已有主题返回 assignments JSON，支持匹配已有 topic 或提出新 candidate topic，并约束新主题必须具体、可持续追踪；由 `TopicAssignmentService` 在 Step 21 中加载使用。
+- `Packages/RSSRadarAI/Sources/RSSRadarAI/Prompts/TopicBriefPrompt.md`：active topic 完整情报页内置模板。要求中文输出完整 TopicBrief JSON，覆盖当前结论、最近变化、时间线、观点分歧、关键证据、观察问题和相关文章 ID；真实生成和缓存写入属于 Step 25+。
+- `Packages/RSSRadarAI/Sources/RSSRadarAI/Prompts/CandidateTopicPreviewPrompt.md`：candidate topic 简版预览内置模板。要求中文输出短版预览 JSON，帮助用户判断追踪或忽略候选主题；真实生成和候选主题 UI 展示属于后续主题阶段。
+- `Packages/RSSRadarProcessing/Sources/RSSRadarProcessing/RSSRadarProcessing.swift`：处理编排模块轻量标识文件，依赖 Core、Persistence、Feeds、AI，保留 `RSSRadarProcessing.moduleName` 供基础模块加载测试使用；实际跨模块流程编排放在同目录的 use case 和 `ProcessingEngine` 文件中。
+- `Packages/RSSRadarProcessing/Sources/RSSRadarProcessing/ProcessingEngine.swift`：本地持久化任务队列的 actor 编排器。`ProcessingEngine` 负责把 feed scan 和 topic assignment 入队、启动时恢复中断任务、读取 ready pending jobs、按 `ProcessingEngineConfiguration` 的每类并发上限选择任务、把任务状态从 pending 推进到 running/completed 或 pending/failed retry 状态，并写入用户可见 operation logs。`ProcessingEngineConfiguration` 同时保存 retry backoff 秒数，默认第 1 次失败立即重试、第 2 次失败 30 秒后重试；`ProcessingEngine.retry(jobID:)` 是用户手动重试 failed job 的入口，会重置自动 attempt 计数并重新排入 pending；`ProcessingEngine.recoverInterruptedJobs(now:)` 是 app 启动时应调用的异常退出恢复入口。`ProcessingJobExecuting` 是可注入执行协议。当前默认 `ProcessingEngineExecutor` 执行 `fetch_feed`，通过 `FeedScanUseCase` 扫描并入库文章；当显式注入 `ArticleAnalyzing` 时也能执行 `analyze_article` job，并从 job payload 读取 `model_name` 后调用 `ArticleAnalysisUseCase`；当显式注入 `TopicAssigning` 时也能执行 `assign_topics` job，并从 job payload 读取逗号分隔的 `article_ids` 和 `model_name` 后调用 `TopicAssignmentUseCase`。如果 `analyze_article` 因 `ArticleAnalysisValidationError` 耗尽重试，engine 会把对应文章标记为 `failed` 并记录非敏感错误，同时不写入成功分析结果。TopicBrief 和 retry job 的真实执行仍由后续步骤补齐。
+- `Packages/RSSRadarProcessing/Sources/RSSRadarProcessing/ArticleAnalysisUseCase.swift`：单篇文章分析跨模块用例。它从 `ArticleRepository` 读取文章，从 `FeedRepository` 读取来源标题，调用注入的 `ArticleAnalyzing`，然后在 `RSSRadarRepositories.performTransaction` 中同时保存 `ArticleAnalysis`、把文章状态更新为 `analyzed`、写回 `importance_score` 并清理 `error_message`。该用例不创建 AI Provider、不读取 Keychain、不决定失败重试策略；配置层应把 Keychain 中取出的 API Key 短暂传给 Provider 后再注入分析服务。
+- `Packages/RSSRadarProcessing/Sources/RSSRadarProcessing/TopicAssignmentUseCase.swift`：批量主题生成与匹配跨模块用例。它按最多 20 篇文章读取对应 `ArticleAnalysis`，读取 active 与 candidate topics 作为已有主题，调用注入的 `TopicAssigning`，然后在一个 repository transaction 中创建新的 candidate `Topic`、写入或更新 `TopicArticle` 关系、把相关文章状态更新为 `assigned`。它支持一篇文章保存多个主题关系，并在同一 AI 批次内复用同名新主题；Step 22 后如果 AI 提出与库内现有 candidate normalized name 相同的新主题，也会复用已有 candidate，避免重复候选主题。Step 23 后，assignment 命中 active topic 时会为每个被触达的 active topic 排入一个 pending `generate_topic_brief` job，payload 只包含 `topic_id`、`brief_type = full` 和 `model_name`，并写入用户可见 operation log；真实 TopicBrief 内容生成仍由 Step 25 实现。它不实现候选主题查看、追踪、忽略、改名或改描述，这些由 `CandidateTopicManagementUseCase` 负责。
+- `Packages/RSSRadarProcessing/Sources/RSSRadarProcessing/CandidateTopicManagementUseCase.swift`：候选主题管理跨模块用例。它通过 Repository 读取 candidate topics、preview brief 和相关文章，返回 `CandidateTopicPreview` 供后续 Topics/Candidate UI 使用；同时提供 candidate -> active、candidate -> ignored、改名和改描述动作。该用例只允许操作 `candidate` 状态主题，改名会按 `TopicRepository` 的 normalized name 规则拒绝同状态重复 candidate；它不触发 active topic 后续扫描、不生成 full TopicBrief、不记录 user corrections。
+- `Packages/RSSRadarProcessing/Sources/RSSRadarProcessing/ManualFeedAddUseCase.swift`：手动添加 RSS 源的跨模块用例。它把 `RSSRadarRepositories.feeds` 包装为 `FeedStore` 后注入 `ManualFeedAddService`，让 app/UI 后续可调用 use case 完成抓取、解析和持久化，而不是直接访问 SQLite 或 `FeedRepository` 细节。文件内的 `FeedRepositoryStore` 同时适配 `OPMLFeedStore`，供 OPML 导入复用同一 Repository 边界。
+- `Packages/RSSRadarProcessing/Sources/RSSRadarProcessing/OPMLImportUseCase.swift`：OPML 导入跨模块用例。它把 `RSSRadarRepositories.feeds` 注入 `OPMLImportService`，让 UI/ViewModel 后续通过 use case 导入 OPML，而不是直接调用 XMLParser 或 `FeedRepository`。
+- `Packages/RSSRadarProcessing/Sources/RSSRadarProcessing/FeedScanUseCase.swift`：Feed 扫描跨模块用例。它从 `FeedRepository` 读取指定 feed，调用 `FeedScanService` 抓取和标准化文章，再读取已有文章并用 `ArticleDeduplicator` 去重，最后在一个 `RSSRadarRepositories.performTransaction` 中保存保留文章并更新 feed 进度。feed 进度按去重后实际保留文章中的最新 `published_at` 推进，避免进度指向未入库重复文章。
+- `Scripts/lint.sh`：本地 SwiftLint 执行脚本。它检查 `swiftlint` 是否在 PATH 中，并将 lint 缓存放到 `.build/swiftlint-cache`，避免依赖用户 Library 缓存目录权限。
+- `Tests/RSSRadarCoreTests/DomainModelTests.swift`：Core 模型测试，覆盖默认值、snake_case 编码键、Codable round trip 和 UUID string ID 生成；当前也覆盖 `ProcessingJob` 和 `OperationLog` 的默认队列/日志字段。
+- `Tests/RSSRadarCoreTests/DomainEnumTests.swift`：Core 枚举测试，确认非法 raw value 解码会抛错，避免无效状态被静默当作有效数据；当前覆盖 feed、article、topic、brief、settings、processing job 和 operation log 枚举。
+- `Tests/RSSRadarPersistenceTests/DatabaseMigrationTests.swift`：Persistence 迁移测试，使用临时 SQLite 数据库验证表创建、WAL/foreign keys/busy timeout 配置、外键约束、级联删除、重复迁移保留数据和 enum CHECK 约束；当前也验证 `processing_jobs` 和 `operation_logs` 的 CHECK 约束。
+- `Tests/RSSRadarPersistenceTests/RepositoryTests.swift`：Persistence Repository 测试，使用临时 SQLite 数据库验证核心对象 CRUD、状态/归属查询、upsert、JSON round trip、topic normalized name 查询、关系表写入与删除、事务失败回滚，settings 默认值、保存读取、upsert、CHECK 约束和 API Key 明文不落库，以及 processing job 基础状态流转、ready-job 排序、payload round trip、operation log 写入/读取/敏感内容拒写。
+- `Tests/RSSRadarPersistenceTests/ProcessingJobRepositoryTests.swift`：ProcessingJob Repository 专项测试。当前覆盖 retry 状态更新和异常退出恢复，验证 attempt count、状态、错误消息、scheduled/start/finish/update timestamps 能被原子写入并正确读回，并确认遗留 `running` job 恢复为 `pending` 时不增加 attempt、不会改动 unrelated pending/completed job。
+- `Tests/RSSRadarPersistenceTests/KeychainAPIKeyStoreTests.swift`：Keychain 存储测试。每个测试使用独立 service 名称并在 teardown 删除创建过的 account identifier，覆盖保存、读取、替换、删除、缺失删除、输入校验、account identifier 生成和错误信息不泄露 API Key 明文。
+- `Tests/RSSRadarFeedsTests/ManualFeedAddServiceTests.swift`：Feeds 模块手动添加测试。使用 fixture-backed `FeedDataLoader` 和捕获型 `FeedStore` 验证有效 RSS、空 RSS、无效 XML、HTTP 失败和非法 URL 的状态/错误/保存行为。
+- `Tests/RSSRadarFeedsTests/OPMLImportServiceTests.swift`：Feeds 模块 OPML 导入测试。使用捕获型 `OPMLFeedStore` 和 OPML fixture 验证分组 outline、标题回退、`htmlUrl` 映射、缺失/非法 `xmlUrl` 错误记录、文档内重复源跳过、已有库重复源跳过和无效 XML 抛错。
+- `Tests/RSSRadarFeedsTests/FeedScanServiceTests.swift`：Feeds 模块扫描测试。使用 fixture-backed `FeedDataLoader` 验证新源最多 20 篇、老源只选择进度之后文章、无新文章仍保持 active、无发布时间文章不推进进度，以及 HTTP 失败会标记 feed error 且保留历史进度。
+- `Tests/RSSRadarFeedsTests/ArticleDeduplicatorTests.swift`：Feeds 模块文章去重单元测试。覆盖 canonical URL 的 host lowercase、fragment 移除、tracking 参数移除、query 稳定排序、URL 重复跳过、同 feed 相似标题跳过、不同 feed 相似标题保留。
+- `Tests/RSSRadarFeedsTests/ArticleContentExtractionServiceTests.swift`：Feeds 模块正文抽取测试。使用 fixture-backed `FeedDataLoader` 验证 RSS full content 优先级、可抽取 HTML 的 `web_extracted` 路径、不可抽取 HTML 降级为 `rss_summary`，并确认解析后文章状态为 `parsed`。
+- `Tests/RSSRadarAITests/AIProviderTests.swift`：AI 模块 Provider 抽象与 URLSession 实现测试。使用 fake provider 验证调用方可依赖协议边界，使用 `URLProtocol` mock 验证 OpenAI-compatible、Custom 和 Anthropic 的请求 URL、header、JSON body、timeout、响应文本解码，以及 HTTP status、timeout、cancelled 和输入校验错误映射。
+- `Tests/RSSRadarAITests/PromptTemplateStoreTests.swift`：AI 模块 Prompt 管理测试。覆盖全部内置模板可从 resource bundle 加载、文章分析模板可替换输入变量、缺失模板会返回明确错误，以及敏感 prompt 输入会在渲染前被拒绝。
+- `Tests/RSSRadarAITests/ArticleAnalysisServiceTests.swift`：AI 模块单篇文章分析测试。使用固定 JSON fixture 和记录型 fake provider，验证 Prompt 请求包含文章输入，provider 响应中的 summary、key_points、entities、claims、events、metrics、content_type、possible_topics、importance_score 和模型名会被解析进 `ArticleAnalysis`；同时覆盖无效 JSON、空 summary 和非法 `content_type` 必须抛出 `ArticleAnalysisValidationError`。
+- `Tests/RSSRadarAITests/TopicAssignmentServiceTests.swift`：AI 模块主题归类测试。使用固定 JSON fixture 和记录型 fake provider，验证一个 article 可同时匹配已有 topic 与提出新 candidate topic，确认请求中包含文章分析和已有主题 JSON，并覆盖宽泛新主题名与未知 topic ID 必须抛出 `TopicAssignmentValidationError`。
+- `Tests/RSSRadarAITests/Fixtures/article-analysis.json`：单篇文章分析成功路径 AI JSON fixture。覆盖 Step 19 要求的全部字段，用于验证结构化输出解析与保存前校验。
+- `Tests/RSSRadarAITests/Fixtures/article-analysis-invalid.json`：单篇文章分析失败路径 AI JSON fixture。故意提供 malformed JSON，用于验证 `ArticleAnalysisService` 不接受非纯 JSON 输出。
+- `Tests/RSSRadarAITests/Fixtures/topic-assignment.json`：主题归类成功路径 AI JSON fixture。覆盖匹配已有 topic、创建新 candidate topic、同一文章多主题归属、confidence、reason 和 contribution type 字段，用于验证 Step 21 结构化输出解析与校验。
+- `Tests/RSSRadarFeedsTests/Fixtures/valid-rss.xml`：手动添加成功路径 RSS fixture，包含标题、站点链接和一篇文章，用于验证 `active` 状态。
+- `Tests/RSSRadarFeedsTests/Fixtures/empty-rss.xml`：无文章 RSS fixture，用于验证 `no_articles` 状态。
+- `Tests/RSSRadarFeedsTests/Fixtures/invalid-rss.xml`：非 feed XML fixture，用于验证解析失败会保存 `error` 状态且不崩溃。
+- `Tests/RSSRadarFeedsTests/Fixtures/feeds.opml`：OPML 导入 fixture，包含分组、重复源、缺失字段、非法 `xmlUrl` 和标题回退场景。
+- `Tests/RSSRadarFeedsTests/Fixtures/many-articles-rss.xml`：Feed 扫描 fixture，包含 22 篇带发布时间文章和 1 篇无发布时间文章，用于验证新源 20 篇上限、发布时间排序、老源进度过滤和无发布时间进度规则。
+- `Tests/RSSRadarFeedsTests/Fixtures/undated-rss.xml`：Feed 扫描 fixture，只包含无发布时间文章，用于验证文章可入选但不得推进 `last_processed_article_published_at`。
+- `Tests/RSSRadarFeedsTests/Fixtures/extractable-article.html`：正文抽取成功 fixture，包含 `article` 正文、导航、页眉页脚、脚本和样式，用于验证 SwiftSoup 抽取正文并移除页面噪声。
+- `Tests/RSSRadarFeedsTests/Fixtures/unextractable-article.html`：正文抽取失败 fixture，正文太短且缺少可用段落，用于验证网页抽取失败时降级为 RSS summary。
+- `Tests/RSSRadarProcessingTests/ManualFeedAddUseCaseTests.swift`：Processing 层手动添加集成测试。使用临时 SQLite 数据库验证 `ManualFeedAddUseCase` 会通过真实 `FeedRepository` 持久化成功和失败 feed。
+- `Tests/RSSRadarProcessingTests/OPMLImportUseCaseTests.swift`：Processing 层 OPML 导入集成测试。使用临时 SQLite 数据库验证 `OPMLImportUseCase` 会通过真实 `FeedRepository` 批量持久化有效 feed，并跳过已有库或同文档重复源。
+- `Tests/RSSRadarProcessingTests/FeedScanUseCaseTests.swift`：Processing 层 feed 扫描集成测试。使用临时 SQLite 数据库验证 `FeedScanUseCase` 会通过真实 `FeedRepository` 和 `ArticleRepository` 原子保存文章与 feed 进度，并验证缺失 feed 的错误路径。
+- `Tests/RSSRadarProcessingTests/ArticleAnalysisUseCaseTests.swift`：Processing 层单篇文章分析集成测试。使用临时 SQLite 数据库和记录型 `ArticleAnalyzing` fake，验证 `ArticleAnalysisUseCase` 会读取来源标题、保存分析结果、把文章状态改为 `analyzed`、写回重要性分数，并验证注入 analyzer 后 `ProcessingEngineExecutor` 可以完成 `analyze_article` job。
+- `Tests/RSSRadarProcessingTests/ProcessingEngineTests.swift`：ProcessingEngine 集成测试。使用临时 SQLite 数据库和可注入 fake executor 验证 scan-all 入队跳过 paused feeds、pending jobs 按任务类型并发上限执行、成功任务进入 completed、未选中任务保留 pending、失败任务自动重试两次后进入 failed、failed job 可手动重试、失败任务不阻塞其他 ready job、启动恢复会重新执行遗留 running 与已有 pending 任务且不重复 completed job，以及默认 executor 可通过 `FeedScanUseCase` 执行 `fetch_feed` 并保存文章。
+- `Tests/RSSRadarProcessingTests/TopicAssignmentUseCaseTests.swift`：Processing 层主题归类集成测试。使用临时 SQLite 数据库和记录型 `TopicAssigning` fake，验证 `TopicAssignmentUseCase` 会读取 article analysis 与已有 topic、创建新 candidate topic、保存已有/新主题的 `TopicArticle` 关系、把文章状态改为 `assigned`，并验证注入 topic assigner 后 `ProcessingEngineExecutor` 可以完成 `assign_topics` job，`ProcessingEngine.enqueueTopicAssignment` 会按 20 篇分批创建持久化任务；Step 22 后也覆盖 AI 提出同 normalized name 新候选时复用已有 candidate。Step 23 后新增覆盖用户改名后的 active topic 名称和描述会进入 AI 输入、后续扫描会更新既有 `TopicArticle` 关系、命中的 active topic 会排入 full `generate_topic_brief` job。
+- `Tests/RSSRadarProcessingTests/CandidateTopicManagementUseCaseTests.swift`：Processing 层候选主题管理集成测试。使用临时 SQLite 数据库验证 `CandidateTopicManagementUseCase` 能把 candidate 转为 active 或 ignored，能持久化改名和改描述，能聚合 preview brief 与相关文章形成候选预览，并确认非 candidate 主题不可通过该用例操作、同状态重复 normalized name 改名会被拒绝。
+- `Tests/RSSRadarProcessingTests/Fixtures/valid-rss.xml`：Processing 集成测试的有效 RSS fixture，用于验证 use case 到 SQLite 的成功保存路径。
+- `Tests/RSSRadarProcessingTests/Fixtures/invalid-rss.xml`：Processing 集成测试的无效 XML fixture，用于验证 use case 到 SQLite 的错误 feed 保存路径。
+- `Tests/RSSRadarProcessingTests/Fixtures/feeds.opml`：Processing 集成测试的 OPML fixture，用于验证 use case 到 SQLite 的 OPML 导入路径。
+- `Tests/RSSRadarProcessingTests/Fixtures/many-articles-rss.xml`：Processing 集成测试的多文章 RSS fixture，用于验证 feed scan use case 到 SQLite 的文章入库和 feed 进度更新路径。
+- `Tests/RSSRadarProcessingTests/Fixtures/dedup-rss.xml`：Processing 集成测试的文章去重 fixture，包含 canonical URL 重复、同 feed 相似标题和不同标题文章，用于验证 scan use case 入库前去重与进度推进规则。
+
+## 工程质量工具
+
+- SwiftLint 作为本地开发工具使用，不作为 Swift Package product dependency 引入。`Package.swift` 中的生产依赖当前仅限 GRDB.swift、FeedKit、SwiftSoup，以及 Apple `Security` framework 链接。
+- 本地验证入口统一使用 `make verify`，当前执行顺序为 SwiftLint 后 XCTest。
+- SwiftLint 缓存放在 `.build/swiftlint-cache`，属于可丢弃构建产物。
+- SwiftFormat 和 CI 暂不接入，避免超过 Step 2 范围。
+
 ## 数据与持久化
 
 - 所有领域对象 ID 统一使用 UUID string。
+- Core 模型显式定义 snake_case `CodingKeys`，避免后续数据库 JSON 字段、AI JSON 校验和导出逻辑各自发明字段名。
+- Core 模型保持纯 Foundation/Codable/Equatable/Sendable，不依赖 GRDB、SQLite、SwiftUI、FeedKit 或 AI Provider；持久化与网络能力从 Step 4 起在各自模块接入。
+- 持久化层使用 GRDB.swift 访问 SQLite。Repository 层是 UI/ViewModel/use case 访问数据库的边界；外部模块不应直接使用 GRDB 或裸 SQL。
+- 数据库入口为 `RSSRadarDatabase(path:)`，它会创建数据库父目录，初始化 internal `DatabaseQueue`，并配置 SQLite。
+- Repository 聚合入口为 `RSSRadarRepositories(database:)`。后续服务层应注入该聚合入口或具体 repository，而不是注入 `RSSRadarDatabase.queue`。
+- 多表写入必须通过 `RSSRadarRepositories.performTransaction(_:)` 或后续同等事务 API 执行，确保任一写入失败时整批变更回滚。
+- Repository 当前使用显式 SQL 和 mapper，而不是让 Core 模型直接 conform GRDB Record。这样 Core 模型继续保持纯 Foundation/Codable/Equatable/Sendable，不引入 GRDB 依赖。
+- Repository upsert 规则与 schema 唯一约束一致：feeds/articles/topics 按 `id`，article analyses 按 `article_id`，topic articles 按 `(topic_id, article_id)`，topic briefs 按 `(topic_id, brief_type)`。
+- App settings 使用单行 singleton 规则：`app_settings.id` 固定为 `default`，`AppSettingsRepository.save` 对该行执行 upsert。
+- `AppSettingsRepository.fetch` 在没有 settings row 时返回 `AppSettings()` 默认值，不主动插入数据库，避免读取操作造成持久化副作用。
+- Repository 层统一负责 ISO8601 text、URL string 和 JSON TEXT 字段映射，业务层不应手写这些数据库编码细节。
+- SQLite 启用 WAL、`foreign_keys = ON` 和 `busy_timeout = 5000`。WAL 必须在非事务数据库访问中设置，不能放进 GRDB write transaction。
 - SQLite 时间字段统一使用 ISO8601 text。
+- v1 migration 名称为 `v1_create_initial_schema`，由 GRDB `DatabaseMigrator` 管理，重复运行不得破坏已有数据。
+- v1 schema 当前包含核心对象、app settings、本地任务队列和用户可见日志表：`feeds`、`articles`、`article_analyses`、`topics`、`topic_articles`、`topic_briefs`、`app_settings`、`processing_jobs`、`operation_logs`。
+- `user_corrections` 暂不在当前 schema 中创建，属于后续用户纠错阶段。
+- 数组和嵌套结构字段以 JSON TEXT 存储，并使用 `_json` 后缀，例如 `key_points_json`、`entities_json`、`timeline_json`、`evidence_json`、`related_article_ids_json`。
+- 数据库表对 status、type、provider、scan mode 等枚举字段使用 CHECK 约束，避免无效 raw value 落库。
+- `topics.normalized_name` 从初始 schema 起预留，用于后续 candidate topic 同状态去重。
+- `article_analyses.article_id` 为 UNIQUE，一篇文章当前只保留一份稳定分析结果。
+- `topic_articles` 使用 `(topic_id, article_id)` 复合主键，支持一篇文章归入多个主题，同时避免同一主题重复关联同一文章。
+- `topic_briefs` 使用 `(topic_id, brief_type)` 唯一约束，同一主题每种 brief 类型只保留当前缓存版本。
+- `processing_jobs` 使用 `id` 主键和 JSON TEXT `payload_json` 保存轻量任务上下文。任务类型覆盖 `fetch_feed`、`parse_article`、`analyze_article`、`assign_topics`、`generate_topic_brief`、`retry_failed_job`。任务状态当前为 `pending`、`running`、`completed`、`failed`；retry 调度策略和异常退出恢复由 `ProcessingEngine` 通过 repository 持久化状态变化。
+- `processing_jobs` 的 ready-job 查询依赖 `(status, scheduled_at)` 索引，并结合 priority、scheduled_at、created_at 排序；`ProcessingEngine` 必须通过 Repository 查询 ready jobs，而不是手写 SQL 或只维护内存队列。
+- `operation_logs` 使用 `id` 主键、`level`、`message`、JSON TEXT `context_json` 和 `created_at`。它服务 Processing 页面，不替代 OSLog；业务代码写入前必须传入用户可理解、已脱敏的消息。
+- `OperationLogRepository` 会拒绝明显包含 API key 或 authorization marker 的日志内容，但这只是最后一道保护，不能依赖它来替代调用方脱敏。
+- `app_settings` 不包含 API Key 明文字段；当前只保存 `keychain_account_identifier`，真实 API Key 由 `KeychainAPIKeyStore` 写入 macOS Keychain。
+- `KeychainAPIKeyStore.defaultService` 固定为 `com.rssradar.api-key`。测试必须使用自定义 service，避免读写正式用户 Keychain item。
+- Keychain item 使用 generic password class，`kSecAttrService` 存 service，`kSecAttrAccount` 存 opaque account identifier，secret bytes 存 `kSecValueData`。
+- 新 API Key account identifier 通过 `KeychainAPIKeyStore.makeAccountIdentifier()` 生成，格式为 `api-key-<UUID>`；它不是 secret，可以写入 SQLite，但不能包含 API Key 明文。
+- 保存 API Key 采用先 `SecItemUpdate`、不存在再 `SecItemAdd` 的 upsert 语义；因此替换 API Key 不需要调用方先删除旧值。
+- 删除 API Key 时 `errSecItemNotFound` 视为成功，方便 Settings 清理流程幂等。
+- Keychain 错误和校验错误不得拼接 API Key 明文；用户可见错误只能包含空 account、空 key、无效数据或 OSStatus 等非 secret 信息。
 - 用户修改数据库路径时使用新路径新库，不迁移旧库。
 - 删除 RSS Feed 使用硬删除，并级联删除该 feed 的文章、分析结果和主题关联。
 - 清空本地数据默认清业务数据，不默认删除 Keychain API Key，除非用户明确勾选。
 
 ## RSS 与去重
 
-- Article URL 去重需要做基础 canonicalization：host lowercase、移除 fragment、移除常见 tracking params。
-- 标题相似度去重只在同一 feed 内执行。
+- 手动添加 RSS 源从 Step 8 起通过 `ManualFeedAddUseCase` 进入系统：UI/ViewModel 后续应调用该 use case 或同级服务，而不是直接抓取 URL、解析 FeedKit 或写 `FeedRepository`。
+- OPML 导入从 Step 9 起通过 `OPMLImportUseCase` 进入系统：UI/ViewModel 后续应把用户选择的 OPML 文件数据交给 use case，而不是直接操作 XMLParser 或 `FeedRepository`。
+- Feed 扫描与文章入库从 Step 10 起通过 `FeedScanUseCase` 进入系统：UI/ViewModel 后续应优先创建 `fetch_feed` job 交给 `ProcessingEngine` 调度，或在明确同步路径中传入 feed ID 调用该 use case；不应直接从 UI 抓取 feed、解析 FeedKit 或写 `ArticleRepository`。
+- `RSSRadarFeeds` 负责 feed 元信息解析和网络边界抽象；`RSSRadarProcessing` 负责把该能力连接到 Repository。这样保留“Feeds 不依赖 Persistence、Processing 编排跨模块流程”的边界。
+- `ManualFeedAddService` 只处理 feed 级元信息：标题、RSS URL、站点 URL、状态、检查时间和错误信息。它不创建 Article，不解析 OPML，不执行去重，也不更新 `last_processed_article_published_at`。
+- `OPMLImportService` 只处理 OPML 文件中的源配置导入：读取 `outline` 的 `text`、`title`、`xmlUrl`、`htmlUrl`，创建 `active` feed，跳过重复源，并把缺失/非法 `xmlUrl` 作为导入结果错误返回。它不验证远端 feed 是否可抓取，不使用 FeedKit，不创建 Article，也不更新 `last_checked_at` 或 `last_success_at`。
+- OPML 重复源判断当前使用 `url.absoluteString` trim 后小写的简单 key，对已有库和本次文档内已见 URL 都生效。文章 URL canonicalization 不扩展到 feed 配置导入，避免改变用户订阅源 URL。
+- 手动添加成功的 feed 若包含至少一篇条目，状态为 `active`；若 feed 可解析但没有条目，状态为 `no_articles`；HTTP 或解析失败会保存 `error` feed 并记录非敏感错误信息；输入本身不是 HTTP/HTTPS URL 时抛错且不保存。
+- FeedKit 是 RSS/Atom/JSON Feed 解析边界。Step 8 用它解析 feed 元信息，Step 10 用它解析文章条目；FeedKit 类型不得泄漏到 Processing、Persistence 或 UI 层。
+- `FeedArticleParser` 只做条目字段标准化，缺少 HTTP/HTTPS URL 的条目会被跳过；标题为空时回退为文章 URL 字符串。
+- `FeedScanService` 返回 `FeedScanResult`，其中包含更新后的 `Feed` 和待保存 `Article` 列表。它不直接写库，方便用 fixture 测试扫描规则。
+- 正文抽取从 Step 12 起内联在 feed 扫描结果中完成：`FeedScanService` 选出本次候选文章后调用 `ArticleContentExtractionService`，再把已解析文章交给 `FeedScanUseCase` 做去重和持久化。
+- 正文来源优先级固定为 RSS full content、网页正文抽取、RSS summary。网页抽取失败、HTTP 非 2xx、HTML 解析失败、抽取文本过短都必须降级为 RSS summary，不阻塞本次 feed 扫描。
+- `ArticleContentExtractionService` 使用 SwiftSoup 将 RSS full content 与 RSS summary 归一化为纯文本；HTML 标签不应原样写入 `Article.content`。
+- 网页正文抽取使用轻量规则，不使用 Playwright、Puppeteer、Selenium、WebKit 渲染池或其他无头浏览器。当前规则会移除脚本、样式、导航、页眉页脚、侧栏等噪声，优先选择 `article`、`main`、`[role=main]` 和常见正文 class，再按段落聚合兜底。
+- 正文抽取完成后的文章状态为 `parsed`，并设置 `content_source` 为 `rss_full_content`、`web_extracted` 或 `rss_summary`。即使 RSS summary 为空，也会标记为 `rss_summary`，让后续 AI 阶段知道已经执行过降级流程。
+- Article URL canonicalization 当前只用于文章去重，不用于 OPML/feed 配置导入。规则为 scheme 和 host lowercase、移除 fragment、移除常见 tracking query 参数、对保留 query 参数排序。
+- 当前 tracking 参数黑名单包含 `utm_*`、`fbclid`、`gclid`、`gbraid`、`wbraid`、`mc_cid`、`mc_eid`、`igshid`、`yclid`、`_hsenc`、`_hsmi`、`spm`、`mkt_tok`。
+- URL 去重跨所有已入库文章和当前扫描批次执行；同一 canonical URL 只保留首次遇到的文章。
+- 标题相似度去重只在同一 feed 内执行。不同 feed 的相似标题必须保留，避免多来源报道同一事件时被误删。
+- 标题相似度规则是本地轻量规则，不引入 NLP 依赖：标题先做 case/diacritic/width folding、按非字母数字切 token，再用 token Jaccard 和编辑距离做近似判断。
+- `FeedScanUseCase` 必须在保存前执行去重，并用 repository transaction 同时保存保留文章和 feed 进度，避免文章入库成功但进度未推进，或进度推进但文章缺失。
+- Feed 处理进度必须按去重后实际保留并成功写入事务的文章计算；如果本次 active 扫描的候选文章全部被去重跳过，应保留旧的 `last_processed_article_published_at`。
+- Step 23 后 `ProcessingEngineExecutor` 的 durable job 执行能力覆盖 `fetch_feed`，并在显式注入 `ArticleAnalyzing` 时覆盖 `analyze_article` 成功路径，在显式注入 `TopicAssigning` 时覆盖 `assign_topics` 成功路径。`assign_topics` 执行完成时如果命中 active topic，会由 `TopicAssignmentUseCase` 排入 pending `generate_topic_brief` job；`generate_topic_brief` 的真实执行仍等待 Step 25。`parse_article` 和 `retry_failed_job` 的真实执行也仍等待后续步骤；不得为了执行这些任务把 Repository 访问加入 `RSSRadarFeeds` 模块。
 - 新源最多 20 篇按发布时间倒序选取，缺少发布时间的文章排在后面。
+- 已有处理进度的源只入选 `published_at > last_processed_article_published_at` 的文章；没有发布时间的文章不会作为老源的新文章入选，因为无法判断是否晚于进度。
+- 已有处理进度的源如果 feed 中有文章但没有新文章，应保持 `active` 并刷新 `last_checked_at`、`last_success_at`，不应误标为 `no_articles`。
+- `no_articles` 表示当前 feed 可解析但没有任何可标准化文章条目，不表示“本次没有新文章”。
 - 如果 feed 中文章缺少 `published_at`，不得用它更新 `last_processed_article_published_at`。
-- Feed 处理进度按已成功入库文章中的最新 `published_at` 更新，不等待 AI 分析完成。
+- Feed 处理进度按去重后已成功入库文章中的最新 `published_at` 更新，不等待 AI 分析完成。
 
 ## 本地处理队列
 
+- Step 16 后 `ProcessingEngine` actor 当前能力覆盖 feed scan 入队、scan-all 入队、启动恢复遗留 running job、ready-job 查询、有限并发调度、运行状态落库、成功完成状态落库、失败自动重试调度和 failed job 手动重试入口。
+- UI/ViewModel 后续不得直接写 `processing_jobs` 裸 SQL；应调用 `ProcessingEngine` 的入队/运行/手动重试入口，或在低层服务中通过 `ProcessingJobRepository` 创建任务后交给 engine 调度。
+- `ProcessingEngineConfiguration` 维护每类 job 的并发上限，默认值为 feed fetch 4、article parse/extraction 3、AI article analysis 2、topic assignment 1、TopicBrief generation 1；同时维护 retry backoff 秒数，当前默认为 `[0, 30]`，即第一次失败立即重试、第二次失败 30 秒后重试。`analyze_article` 已有成功路径执行能力，但需要调用方显式注入 `ArticleAnalyzing`；主题类任务虽然已有调度并发配置，但真实执行逻辑尚未实现。
+- `ProcessingEngine.runPendingJobs(now:)` 每次从 Repository 读取一批 ready pending jobs，然后按 `ProcessingJobType` 分桶选择本轮可执行任务，避免某一类大量任务长期挤占其他类型任务的并发名额。
+- `ProcessingEngine.recoverInterruptedJobs(now:)` 应在 app 启动并完成数据库迁移后、正式调度 `runPendingJobs` 前调用。它通过 Repository 将遗留 `running` job 改回 `pending`，把 `scheduled_at` 更新为恢复时间，并写入 warning 级 operation log；它不得增加 `attempt_count`，也不得重置 failed/completed job。
+- `ProcessingJobExecuting` 是 engine 与具体任务实现之间的协议边界。测试使用 fake executor 验证调度；生产默认 `ProcessingEngineExecutor` 执行 `fetch_feed`，并复用 `FeedScanUseCase` 保持 RSS 抓取、正文抽取、去重和入库规则一致。`ProcessingEngineExecutor` 也可以通过构造参数注入 `ArticleAnalyzing` 来执行 `analyze_article`，或注入 `TopicAssigning` 来执行 `assign_topics`，这样 AI Provider/API Key 装配仍留在配置层，而不是由队列执行器读取 Keychain 或构建网络 provider。
+- 任务执行失败时，engine 使用当前 job 快照计算 `attempt_count + 1`。如果未达到 `max_attempts`，任务回到 `pending`，写入 `last_error_message`，并按 retry backoff 更新 `scheduled_at`；如果达到 `max_attempts`，任务进入 `failed`，等待用户手动重试。
+- 手动重试只允许作用于 `failed` job。`ProcessingEngine.retry(jobID:)` 会把任务重置为 `pending`、`attempt_count = 0`、清空 `last_error_message/start/finish`，并写入一条 info 级 operation log；这表示用户主动给该任务开启新一轮最多 3 次自动尝试。
+- Processing 页面后续应读取 `processing_jobs` 与 `operation_logs` 组合展示状态、失败原因、最近日志和可重试入口；不要直接读取 OSLog。
+- `ProcessingJob.payload` 当前约束为 `[String: String]`，适合保存 feed/article/topic/job ID、触发来源等轻量上下文。复杂输入应优先由 `entity_type + entity_id` 指向数据库实体，不要把大段文章正文或 API Key 放进 payload。
+- `operation_logs.context` 当前约束为 `[String: String]`，用于保存可展示的非敏感上下文，例如 `job_id`、`feed_id`、`article_id`、`topic_id`。不得保存 Authorization header、API Key、AI request body 中的 secret 或完整敏感错误原文。
 - App 启动恢复时，将遗留 `running` job 恢复为 `pending`，不额外增加 `attempt_count`。
 - `max_attempts = 3`；第 3 次失败后标记 `failed`，等待用户手动重试。
 - AI JSON 校验失败时，job 进入 retry 或 failed；article 保持上一稳定状态，最终不可恢复时标记 `failed` 并记录错误。
@@ -35,13 +209,35 @@
 ## AI 与主题
 
 - TopicBrief 默认使用中文生成。
+- Step 17 后，AI 调用统一通过 `AIProvider` 协议进入系统；上层处理流程应依赖协议或可注入 provider，不应直接在 Processing/UI 中手写 URLSession AI 请求。
+- `AIProviderConfiguration` 是 provider 类型、base URL、API Key 明文和 timeout 的运行时组合。API Key 只应从 Keychain 读取后短暂传入 provider configuration；不得写入 SQLite、operation logs、processing job payload、prompt 输入文件或测试 fixture。
 - OpenAI-compatible 默认 Base URL 为 `https://api.openai.com/v1`。
 - Anthropic 默认 Base URL 为 `https://api.anthropic.com`。
-- OpenAI-compatible 与 Custom Base URL 均按 Chat Completions 兼容格式实现。
-- Prompt 模板放在 `Prompts/*.md` 资源文件中。
-- Topic assignment 在单篇分析完成后按每批 20 篇生成或匹配主题。
-- 宽泛主题名通过 Prompt 约束加本地最小规则校验处理，校验失败进入重试。
-- Candidate topic 在同状态下按 normalized name 做简单去重。
+- Custom Base URL 未显式传入时默认沿用 OpenAI-compatible base URL；用户配置自定义 endpoint 时应传入完整 API base URL。
+- OpenAI-compatible 与 Custom Base URL 均按 Chat Completions 兼容格式实现，请求路径为 `/chat/completions`，认证 header 为 `Authorization: Bearer <key>`。
+- Anthropic 按 Messages API 格式实现，请求路径为 `/v1/messages`，认证 header 为 `x-api-key`，并设置固定 `anthropic-version`。
+- AI Provider 层只返回 provider 响应文本和模型名；Prompt 拼装、结构化 JSON 校验、`ArticleAnalysis`/Topic/TopicBrief 持久化属于 Step 18+ 的上层服务职责。
+- AI Provider 层统一把缺少 API Key、缺少模型、空消息、HTTP 状态、超时、取消、网络失败和无效响应映射为 `AIProviderError`。这些错误描述面向用户可理解，但不得包含 API Key 明文或完整敏感请求内容。
+- Step 18 后，Prompt 模板放在 `Packages/RSSRadarAI/Sources/RSSRadarAI/Prompts/*.md`，由 `RSSRadarAI` target 作为 SwiftPM resources 处理，不放入 app target resources。
+- Prompt 管理统一通过 `PromptTemplateStore` 进入系统。后续文章分析、主题归类和 TopicBrief 生成流程应加载 `PromptTemplateKind` 对应模板并渲染变量，不应在 Processing/UI 中硬编码大段 prompt。
+- 当前 Prompt 渲染是有意保持简单的 `{{variable}}` 字符串替换，复杂模板语言、用户自定义 Prompt 编辑、Prompt 版本迁移和 Prompt 数据库持久化均不属于当前 MVP 阶段。
+- Prompt 输入不得包含 API Key、Authorization header、Bearer token、`x-api-key` 或明显 `sk-` key 形态。`PromptTemplate.render(variables:)` 有保守拒写检查，但调用方仍应只传入文章、主题和分析所需的非 secret 内容。
+- Step 20 后，单篇文章分析由 `ArticleAnalysisService` 负责 Prompt 渲染、Provider 调用、成功 JSON parse、`ArticleContentType` enum 解码、summary 非空校验、`importance_score` 范围校验和字符串数组归一化；它返回领域模型但不持久化，校验失败时抛出 `ArticleAnalysisValidationError`。
+- Step 19 后，单篇文章分析持久化由 `ArticleAnalysisUseCase` 负责。它必须在一个 repository transaction 中保存 `ArticleAnalysis` 并更新 `Article.status = analyzed`、`Article.importance_score` 和 `Article.updated_at`，避免分析结果和文章状态不一致。
+- `ArticleAnalysisService` 当前只接受 provider 返回的纯 JSON 文本，不剥离 Markdown code fence 或额外解释文本；Prompt 已要求模型只返回 JSON。这类无效输出会作为校验失败交给 `ProcessingEngine` 的 durable retry/failed 流程处理。
+- `analyze_article` job 的 `model_name` 当前从 `ProcessingJob.payload["model_name"]` 读取。payload 只能保存模型名这类非敏感轻量上下文，不得保存 API Key、完整 AI 请求体或文章全文；文章正文通过 `entity_id` 指向数据库文章读取。
+- Step 20 后，AI JSON 校验失败先走 `ProcessingEngine` 通用 retry 机制；未耗尽 attempts 时 article 保持上一稳定状态，不写 `article_analyses`。当 `analyze_article` 因 `ArticleAnalysisValidationError` 最终 failed 时，`ProcessingEngine` 会把对应 `Article.status` 标记为 `failed`，写入非敏感 `error_message`，并继续不写 `article_analyses`。
+- Step 21 后，主题归类由 `TopicAssignmentService` 负责 Prompt 渲染、Provider 调用、成功 JSON parse、article/topic 引用校验、`TopicContributionType` enum 解码、confidence 范围校验、reason 非空校验、新主题字段校验和字符串归一化；它返回 typed assignments 但不持久化，校验失败时抛出 `TopicAssignmentValidationError`。
+- Step 21 后，主题归类持久化由 `TopicAssignmentUseCase` 负责。它按每批最多 20 篇读取 `ArticleAnalysis`，读取 active 与 candidate topics 作为已有主题，调用注入的 `TopicAssigning`，并在一个 repository transaction 中创建新 candidate `Topic`、保存或更新 `TopicArticle`、把文章状态更新为 `assigned`。Step 22 后，AI 提出的新 candidate topic 若与同状态现有 candidate normalized name 相同，会复用现有 candidate，不再创建重复主题。
+- Step 23 后，active topic 的持续更新复用主题归类路径：active topic 会以当前 `Topic.name` 和 `Topic.description` 进入 `TopicAssignmentService` 的 existing topics JSON，因此用户改名或改描述后的值会影响后续扫描；`original_ai_name` 和 `original_ai_description` 只保留为内部元数据，不用于覆盖用户编辑值。
+- Step 23 后，每个 topic assignment 批次中被命中的 active topic 会在同一 repository transaction 中排入一个 pending `generate_topic_brief` job，作为扫描后的完整情报页预生成信号。同一批次内同一 active topic 只排一次；payload 只允许保存非敏感轻量值：`topic_id`、`brief_type = full`、`model_name`。
+- Step 23 排入的 `generate_topic_brief` job 是 durable placeholder。`ProcessingEngineExecutor` 仍不会执行该 job，直到 Step 25 引入真实 TopicBrief 生成、JSON 校验和缓存写入；Step 23 不生成或覆盖 `topic_briefs` 行。
+- `assign_topics` job 的 `article_ids` 当前从 `ProcessingJob.payload["article_ids"]` 读取，使用逗号分隔 article ID；`model_name` 从 payload 读取。payload 只能保存 ID 和模型名这类非敏感轻量上下文，不得保存 API Key、完整 AI 请求体、文章正文或分析 JSON。
+- `ProcessingEngine.enqueueTopicAssignment(...)` 会把 article IDs 按 20 篇切成多个持久化 `assign_topics` job，匹配 `AppSettings.maxTopicBatchSize` 的默认成本控制约束；后续 UI/ViewModel 应通过该入口或等价 use case 入队，而不是直接写 `processing_jobs`。
+- 宽泛主题名通过 Prompt 约束加 `TopicAssignmentService` 的本地最小规则校验处理，校验失败进入 ProcessingEngine 通用 retry/failed 流程。
+- Step 22 后，候选主题查看、简版预览数据源、追踪、忽略、改名和改描述统一由 `CandidateTopicManagementUseCase` 负责。该用例只操作 `candidate` 状态主题；candidate -> active 或 ignored 只是状态切换，不触发 Step 23 的后续扫描或 full TopicBrief 预生成。
+- 同状态 candidate topic 去重依赖 `TopicRepository.normalizeName(_:)` 写入 `topics.normalized_name` 的规则：trim、lowercase、压缩连续空白。`TopicAssignmentUseCase` 在创建 AI 新候选前按该 key 查询现有 candidate 复用，`CandidateTopicManagementUseCase.renameCandidate` 在改名前按该 key 拒绝重名 candidate。
+- `CandidateTopicPreview` 是当前候选预览的处理层 DTO，包含 `Topic`、可选 preview `TopicBrief`、关系数量和可读取到的相关文章；它复用已有 `TopicBriefRepository.fetch(topicID:briefType:.preview)`，不在 Step 22 生成新的 preview brief。
 
 ## MVP 范围
 

@@ -1,0 +1,27 @@
+{
+  "summary": "OpenAI released a new local-first API workflow that reduces setup friction for Mac developers.",
+  "key_points": [
+    "The workflow keeps user data on device while sending only selected article text to the configured provider.",
+    "Developers can use the same prompt contract across OpenAI-compatible and custom endpoints."
+  ],
+  "entities": [
+    "OpenAI",
+    "macOS",
+    "SwiftUI"
+  ],
+  "claims": [
+    "A local-first architecture can reduce privacy risk for AI-assisted RSS analysis."
+  ],
+  "events": [
+    "OpenAI introduced a new API workflow for desktop developers."
+  ],
+  "metrics": [
+    "Setup time reduced by 30%"
+  ],
+  "content_type": "announcement",
+  "possible_topics": [
+    "Local-first AI workflows for macOS research tools",
+    "OpenAI-compatible provider support in desktop apps"
+  ],
+  "importance_score": 0.82
+}

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Dedup Feed</title>
+    <link>https://example.com</link>
+    <description>Dedup fixture</description>
+    <item>
+      <title>Original URL duplicate</title>
+      <link>https://example.com/story?id=42&amp;utm_source=rss#comments</link>
+      <pubDate>Fri, 22 May 2026 10:00:00 GMT</pubDate>
+      <description>URL duplicate.</description>
+    </item>
+    <item>
+      <title>Apple launches iPhone 17 in China</title>
+      <link>https://example.com/iphone-17</link>
+      <pubDate>Thu, 21 May 2026 10:00:00 GMT</pubDate>
+      <description>First title.</description>
+    </item>
+    <item>
+      <title>Apple launches the iPhone 17 in China</title>
+      <link>https://example.com/iphone-17-follow</link>
+      <pubDate>Wed, 20 May 2026 10:00:00 GMT</pubDate>
+      <description>Similar title.</description>
+    </item>
+    <item>
+      <title>Microsoft reports Azure growth</title>
+      <link>https://example.com/azure-growth</link>
+      <pubDate>Tue, 19 May 2026 10:00:00 GMT</pubDate>
+      <description>Distinct title.</description>
+    </item>
+  </channel>
+</rss>

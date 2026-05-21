@@ -1,0 +1,24 @@
+{
+  "assignments": [
+    {
+      "article_id": "article-1",
+      "topic_id": "topic-existing",
+      "new_topic_name": null,
+      "new_topic_description": null,
+      "confidence": 0.91,
+      "reason": "The article updates adoption of Claude Code in large Swift codebases.",
+      "contribution_type": "new_event"
+    },
+    {
+      "article_id": "article-1",
+      "topic_id": null,
+      "new_topic_name": "AI coding tools reshape junior developer onboarding",
+      "new_topic_description": "Tracks how AI coding assistants change onboarding expectations, productivity, and mentorship for junior developers.",
+      "new_topic_entities": ["AI coding assistants", "junior developers"],
+      "new_topic_importance_score": 0.78,
+      "confidence": 0.84,
+      "reason": "The article also discusses the impact of AI coding tools on entry-level developer workflows.",
+      "contribution_type": "new_opinion"
+    }
+  ]
+}

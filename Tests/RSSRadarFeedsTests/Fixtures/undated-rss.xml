@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Undated RSSRadar Feed</title>
+    <link>https://example.com</link>
+    <item>
+      <title>Article without date</title>
+      <link>https://example.com/articles/no-date</link>
+      <description>No publication date.</description>
+    </item>
+  </channel>
+</rss>
