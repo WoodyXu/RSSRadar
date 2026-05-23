@@ -1133,3 +1133,270 @@ Verification:
 - `swift test` passed with 146 tests and 0 failures.
 
 Stop point: next step is implementation-plan Step 30, implement Onboarding flow. Do not start Step 30 until explicitly requested.
+
+## 2026-05-21 - Step 30: Onboarding flow
+
+Completed implementation-plan Step 30.
+
+- Added app runtime bootstrap with `AppEnvironment`:
+  - creates the default local SQLite database path under Application Support
+  - runs database migrations
+  - wires repositories, Keychain storage, feed import use cases, processing engine, and candidate topic management use case
+- Updated the SwiftUI app entry so startup failures show a small error view instead of crashing silently.
+- Updated the root view so first launch shows onboarding through `@AppStorage("hasCompletedOnboarding")`; after completion it returns to the existing app shell.
+- Added `OnboardingViewModel` as the Step 30 orchestration boundary:
+  - loads existing settings and feed/candidate summaries
+  - adds a manual RSS feed through `ManualFeedAddUseCase`
+  - imports OPML through `OPMLImportUseCase`
+  - saves AI provider/base URL/model/settings through `AppSettingsRepository`
+  - saves API Key only to macOS Keychain and persists only the Keychain account identifier
+  - starts the first scan through `ProcessingEngine`
+  - analyzes parsed articles through `ArticleAnalysisUseCase`
+  - assigns analyzed articles to topics through `TopicAssignmentUseCase`
+  - refreshes candidate topic previews through `CandidateTopicManagementUseCase`
+- Added `OnboardingView` with the documented first-use flow:
+  - welcome/local-first explanation
+  - manual RSS URL add
+  - OPML import file picker
+  - AI Provider segmented picker, base URL, model and secure API Key field
+  - article processing limit stepper
+  - first scan button
+  - candidate topic preview section
+- Styled the onboarding screen using the repository `DESIGN.md` reference:
+  - warm cream canvas
+  - deep green hero band
+  - green pill buttons
+  - white soft-shadow cards
+  - floating circular continue button
+- Kept Step 31 out of scope:
+  - no full Feeds page
+  - no full Processing page
+  - no full Settings page
+  - no clear-local-data UI
+  - no failed-job management UI
+
+Verification:
+
+- User verified this step after local testing.
+- `swift test` passed with 146 tests and 0 failures.
+- `make verify` passed and ran SwiftLint plus `swift test`.
+- SwiftLint reported 0 violations across 91 Swift files.
+
+Stop point: next step is implementation-plan Step 31, implement Feeds, Processing, and Settings pages. Do not start Step 31 until explicitly requested.
+
+## 2026-05-21 - Step 31: Feeds, Processing, and Settings pages
+
+Completed implementation-plan Step 31.
+
+- Added full app-shell pages for Feeds, Processing, and Settings, replacing the Step 30 placeholders while leaving Today and Topics unchanged.
+- Added shared app UI support:
+  - `AppTheme` for the warm cream, green, pill-button, card, and status-banner styling used by Step 31 pages.
+  - `AppFormatting` for compact date display helpers.
+  - `AppViewModelSupport` for shared user-facing error text and enum display names.
+- Added `FeedsViewModel` and `FeedsView`:
+  - lists saved feeds with status, scan timestamps, progress, and last error.
+  - supports manual RSS add through `ManualFeedAddUseCase`.
+  - supports OPML import through `OPMLImportUseCase`.
+  - supports per-feed refresh and refresh-all through `ProcessingEngine`.
+  - supports pause/resume by updating feed status through `FeedRepository`.
+  - supports feed deletion through `FeedRepository`, relying on SQLite foreign-key cascades for related feed data.
+- Added `ProcessingViewModel` and `ProcessingView`:
+  - shows pending/running/failed/completed counts.
+  - lists processing jobs with status, scheduled time, attempt count, and failure reason.
+  - shows recent user-visible `operation_logs`.
+  - supports running pending jobs and retrying failed jobs through `ProcessingEngine`.
+- Added `SettingsViewModel` and `SettingsView`:
+  - loads and saves AI provider, base URL, model, scan mode, scan interval, processing limits, AI timeout, and database path through `AppSettingsRepository`.
+  - saves API Key only to macOS Keychain and persists only the Keychain account identifier.
+  - supports deleting the saved Keychain API Key.
+  - provides a conservative clear-local-data sheet requiring the user to type `CLEAR`.
+  - clear-local-data deletes business data by repository APIs and keeps the Keychain API Key by default.
+  - deleting the Keychain API Key during clear-local-data only happens when the user explicitly toggles that option.
+- Added `UserCorrectionRepository.delete(id:)` so the Settings clear-local-data path can remove `user_corrections` along with feeds, articles, topics, jobs, and logs.
+- Kept Step 32 out of scope:
+  - no dedicated no-RSS-source state.
+  - no dedicated missing-API-key state.
+  - no dedicated AI-call-failed state.
+  - no dedicated content-fetch-failed state.
+  - no dedicated no-new-articles state.
+
+Verification:
+
+- User verified this step after local testing.
+- `swift build` passed.
+- `make verify` passed and ran SwiftLint plus `swift test`.
+- SwiftLint reported 0 violations across 100 Swift files.
+- `swift test` passed with 146 tests and 0 failures.
+
+Stop point: next step is implementation-plan Step 32, implement errors and empty states. Do not start Step 32 until explicitly requested.
+
+## 2026-05-22 - Step 32: Errors and empty states
+
+Completed implementation-plan Step 32.
+
+- Added dedicated empty/error state handling across the existing Step 31 app-shell pages.
+- Added `EmptyStateCard` to `AppTheme` as the shared warm-cream/green/soft-card empty state surface for actionable guidance.
+- Updated `FeedsViewModel` and `FeedsView`:
+  - keeps a per-feed article snapshot so the UI can explain RSS summary fallback.
+  - shows a no-RSS-source state with OPML import as the primary next action.
+  - disables refresh-all when there are no feeds.
+  - reports no-new-article scans after single-feed and all-feed refreshes.
+  - shows `no_articles` feed status as a non-blocking feed-level state.
+  - shows a content extraction fallback notice when persisted articles use `content_source = rss_summary`.
+- Updated `ProcessingViewModel` and `ProcessingView`:
+  - reads whether an API Key account identifier is saved in `AppSettings`.
+  - classifies failed AI jobs (`analyze_article`, `assign_topics`, `generate_topic_brief`) for a dedicated AI failure state.
+  - shows missing-API-key guidance while making clear RSS feed scanning can continue.
+  - shows AI call failures with failure reason, model name when available, failure time, retry action, and Settings action.
+  - shows empty states for no processing jobs and no operation logs instead of blank sections.
+- Updated `SettingsView`:
+  - shows a dedicated missing API Key notice in the AI settings card.
+  - explains that RSS scanning can continue, while article analysis, topic generation, and TopicBrief generation require a saved provider/model/API Key.
+- Updated `AppRootView` so Processing can route the user directly to Settings from the missing-key and AI-failure states.
+- Did not start Step 33:
+  - no privacy/security acceptance scan was performed.
+  - no telemetry/dependency audit was added.
+  - no database/log/export secret scan was added.
+
+Verification:
+
+- User verified this step after local testing.
+- `swift build` passed.
+- `make verify` passed and ran SwiftLint plus `swift test`.
+- SwiftLint reported 0 violations across 100 Swift files.
+- `swift test` passed with 146 tests and 0 failures.
+
+Stop point: next step is implementation-plan Step 33, execute privacy and security acceptance. Do not start Step 33 until explicitly requested.
+
+## 2026-05-22 - Step 33: Privacy and security acceptance
+
+Completed implementation-plan Step 33.
+
+- Audited the implemented code and package manifests for privacy-sensitive integration points:
+  - no developer-hosted server or AI proxy endpoint was added.
+  - no cloud sync, telemetry, analytics, cloud logging, crash-reporting SDK, or extra third-party dependency was added.
+  - AI network requests remain limited to `URLSessionAIProvider`, which sends requests from the user's Mac to the user-configured OpenAI-compatible, Anthropic, or Custom provider.
+  - RSS/article network requests remain limited to feed/article URLs supplied by the user's sources.
+- Added a repeatable privacy/security audit command:
+  - `Scripts/privacy_security_audit.sh`
+  - `make privacy-audit`
+- Updated `make verify` so future verification runs SwiftLint, the privacy/security audit, and the full test suite.
+- The audit checks package manifests and source/test imports for telemetry references, hard-coded unexpected endpoints, and API-key/auth-looking plaintext in prompts, fixtures, log files, Markdown export-like files, and repository database files.
+- Added `SensitiveContentValidator` in the persistence module and reused it for user-visible operation logs.
+- Hardened `ProcessingJobRepository` so `processing_jobs.payload` keys/values and persisted job error messages reject obvious API key or authorization markers before they can be written to SQLite.
+- Added repository tests confirming processing job payloads and job error messages reject API key / Authorization / Bearer / `x-api-key` marker content.
+- Kept Step 34 out of scope:
+  - no performance/stability benchmark was performed.
+  - no large RSS corpus or UI responsiveness profiling was added.
+  - no startup timing measurement was added.
+
+Verification:
+
+- User verified this step after local testing.
+- `Scripts/privacy_security_audit.sh` passed.
+- `swift test --filter RSSRadarPersistenceTests` passed with 32 tests and 0 failures.
+- `make verify` passed and ran SwiftLint, privacy audit, and `swift test`.
+- SwiftLint reported 0 violations across 101 Swift files.
+- Privacy audit passed.
+- `swift test` passed with 147 tests and 0 failures.
+
+Stop point: next step is implementation-plan Step 34, execute performance and stability acceptance. Do not start Step 34 until explicitly requested.
+
+## 2026-05-22 - Step 34: Performance and stability acceptance
+
+Completed implementation-plan Step 34.
+
+- Added `ProcessingStartupRecoveryUseCase` as the app-bootstrap recovery boundary. It calls `ProcessingJobRepository.recoverInterruptedJobs` and writes a warning-level operation log when at least one interrupted job is recovered. `AppEnvironment.make()` now calls it after database migration and before running pending jobs.
+- Optimized repository query paths for large data sets:
+  - `ArticleRepository.fetchGroupedByFeedID()` returns `OrderedDictionary<feed_id, [article]>` in a single pass without N+1 article fetches.
+  - `ArticleRepository.fetch(ids:)` allows batch article lookup by ID without loading all articles.
+  - `ArticleRepository` article count queries use `SELECT COUNT(*) WHERE feed_id = ?` without decoding full article objects.
+  - `TopicArticleRepository.fetchAll()` returns flat arrays for in-memory relationship grouping rather than one query per topic.
+  - `TopicBriefRepository.fetchAll()` returns flat arrays without per-topic subqueries.
+  - `TodayPageDataSource` avoids N+1 lookups by preloading article analyses, briefs, and topic relations in bulk before snapshot aggregation.
+- `FeedsViewModel` switched to batch article group snapshot for feed-level article counts, replacing per-feed article list decoding.
+- Added `PerformanceStabilityAcceptanceTests` covering:
+  - startup bootstrap, migration, repository creation, and recovery path fits the 2-second budget on a 60-feed / 3000-article / 290-job data set.
+  - feeds and processing page list snapshots remain responsive (< 2s) on a large local data set.
+  - today page snapshot aggregation remains responsive (< 2s) on a large local data set.
+  - a bounded processing run executes a per-type concurrent slice quickly enough for UI to stay usable; one failing job does not block the remaining queue.
+  - interrupted running jobs recover and re-execute without repeating already-completed jobs.
+- Added `make performance-stability` and `Scripts/performance_stability_acceptance.sh` as the local performance acceptance entry point, aligned with the Step 33 `make privacy-audit` pattern.
+
+Verification:
+
+- User verified this step after local testing.
+- `swift test --filter PerformanceStabilityAcceptanceTests` passed with 5 tests and 0 failures (8.1s total).
+- `Scripts/performance_stability_acceptance.sh` passed.
+- `make verify` passed and ran SwiftLint, privacy audit, and `swift test`.
+- SwiftLint reported 0 violations across 103 Swift files.
+- Privacy audit passed.
+- `swift test` passed with 152 tests and 0 failures.
+
+Stop point: implementation-plan Step 34 complete. Next step is implementation-plan Step 35, execute MVP end-to-end acceptance.
+
+## 2026-05-22 - Step 35: MVP end-to-end acceptance
+
+Completed implementation-plan Step 35.
+
+- Added `MVPEndToEndAcceptanceTests` as the full MVP acceptance test. Starting from an empty SQLite database, it exercises the complete closed loop: RSS/OPML import, Provider/Keychain configuration, first scan, AI retry with attempt counting, article analysis, topic generation, multi-topic assignment, candidate preview, track/ignore/rename/edit-description, active topic continuous update, full TopicBrief generation, Topic Detail snapshot, and Markdown copy and file export.
+- Added `Scripts/mvp_end_to_end_acceptance.sh` as the dedicated Step 35 acceptance entry point, aligned with the Step 33 `make privacy-audit` and Step 34 `make performance-stability` patterns.
+- Added `make mvp-e2e` to the Makefile, calling `Scripts/mvp_end_to_end_acceptance.sh`.
+- Updated `Package.swift` so `RSSRadarProcessingTests` can import `RSSRadarExport`, enabling the Markdown export closure to be covered by the end-to-end acceptance test.
+
+Verification:
+
+- User verified this step after local testing.
+- `swift test --filter MVPEndToEndAcceptanceTests` passed with 1 test and 0 failures (0.704s).
+- `Scripts/mvp_end_to_end_acceptance.sh` passed.
+- `make verify` passed and ran SwiftLint, privacy audit, and `swift test`.
+- SwiftLint reported 0 violations across 103 Swift files.
+- Privacy audit passed.
+- `swift test` passed with 153 tests and 0 failures.
+
+Stop point: implementation-plan Step 35 complete. MVP 35-step implementation is complete.
+
+## 2026-05-22 - Navigation sidebar selection fix
+
+Completed a focused post-MVP UI iteration for the main app shell.
+
+- Fixed the macOS `NavigationSplitView` sidebar so Today, Topics, Feeds, Processing, and Settings are real selectable rows.
+- Changed `AppRootView` from `List(RSSRadarSection.allCases, selection:)` with plain labels to an explicit `List(selection:)` containing `ForEach` rows tagged with their `RSSRadarSection`.
+- Updated `RSSRadarSection` to conform to `Hashable`, matching SwiftUI's selection/tag requirements.
+- Kept page structure unchanged: Today and Topics remain placeholders; Feeds, Processing, and Settings continue to use their existing ViewModels.
+
+Verification:
+
+- `swift build` passed.
+
+## 2026-05-22 - Post-scan AI processing pipeline
+
+Completed a focused queue orchestration iteration after RSS scan verification.
+
+- Added `ProcessingEngine.enqueueArticleAnalysis(...)` and `enqueueParsedArticleAnalysis(...)` so parsed articles can be queued for durable AI analysis without duplicate analysis jobs.
+- Added `ProcessingEngine.runPendingJobsUntilIdle(maxPasses:)` so UI-triggered refreshes can advance feed scan, article analysis, and topic assignment until the current ready queue is empty.
+- Updated `ProcessingEngineExecutor`:
+  - `fetch_feed` now queues `analyze_article` jobs for newly parsed articles when AI settings are available.
+  - `analyze_article` now queues an `assign_topics` job after analysis is persisted.
+  - dynamic AI provider/settings closures allow production execution to use current Settings + Keychain without storing API keys in SQLite or job payloads.
+- Updated `AppEnvironment` to inject the dynamic AI provider factory and AI settings provider into the production processing executor.
+- Updated `FeedsViewModel` so single-feed and all-feed refreshes also enqueue existing `parsed` articles before scanning, covering articles parsed before this pipeline existed.
+- Added `ProcessingEngineTests.testDefaultExecutorPipelinesFeedScanIntoAnalysisAndTopicAssignment` to cover the feed scan -> analysis -> topic assignment queue chain.
+
+Verification:
+
+- `swift test --filter ProcessingEngineTests` passed with 9 tests and 0 failures.
+- `swift test` passed with 154 tests and 0 failures.
+
+## 2026-05-22 - Article analysis failure state consistency
+
+Completed a focused queue state consistency fix.
+
+- Changed `ProcessingEngine` so every exhausted `analyze_article` job failure marks the related `Article` as `failed` and persists the final error message.
+- Previously only `ArticleAnalysisValidationError` exhausted failures updated the article status; provider-level failures such as missing assistant content could leave articles stuck in `parsed` after all retries failed.
+- Added `ProcessingEngineTests.testExhaustedArticleAnalysisProviderFailureMarksArticleFailedWithoutAnalysis` to cover provider response failures.
+
+Verification:
+
+- `swift test --filter ProcessingEngineTests` passed with 10 tests and 0 failures.
+- `swift test` passed with 155 tests and 0 failures.
