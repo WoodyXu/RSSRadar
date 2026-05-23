@@ -96,6 +96,35 @@ final class ProcessingJobRepositoryTests: XCTestCase {
         XCTAssertEqual(persistedCompletedJob.status, .completed)
         XCTAssertEqual(persistedCompletedJob.finishedAt, fixedDate.addingTimeInterval(2))
     }
+
+    func testRejectsSensitivePayloadAndErrorContent() throws {
+        let repositories = try makeRepositories()
+        var payloadJob = makeProcessingJob(id: "job-sensitive-payload")
+        payloadJob.payload = ["api_key": "sk-test-secret-value"]
+
+        XCTAssertThrowsError(try repositories.processingJobs.save(payloadJob)) { error in
+            XCTAssertEqual(error as? RSSRadarRepositoryError, .sensitiveLogContent)
+        }
+
+        var failedJob = makeProcessingJob(id: "job-sensitive-error")
+        failedJob.lastErrorMessage = "Authorization failed for Bearer sk-test-secret-value"
+
+        XCTAssertThrowsError(try repositories.processingJobs.save(failedJob)) { error in
+            XCTAssertEqual(error as? RSSRadarRepositoryError, .sensitiveLogContent)
+        }
+
+        try repositories.processingJobs.save(makeProcessingJob(id: "job-plain-error"))
+        XCTAssertThrowsError(
+            try repositories.processingJobs.updateStatus(
+                id: "job-plain-error",
+                status: .failed,
+                lastErrorMessage: "x-api-key was rejected",
+                updatedAt: fixedDate
+            )
+        ) { error in
+            XCTAssertEqual(error as? RSSRadarRepositoryError, .sensitiveLogContent)
+        }
+    }
 }
 
 private extension ProcessingJobRepositoryTests {
@@ -111,5 +140,18 @@ private extension ProcessingJobRepositoryTests {
         let database = try RSSRadarDatabase(path: databaseURL.path)
         try database.migrate()
         return RSSRadarRepositories(database: database)
+    }
+
+    func makeProcessingJob(id: String) -> ProcessingJob {
+        ProcessingJob(
+            id: id,
+            jobType: .fetchFeed,
+            entityType: .feed,
+            entityID: "feed-1",
+            payload: ["feed_id": "feed-1"],
+            scheduledAt: fixedDate,
+            createdAt: fixedDate,
+            updatedAt: fixedDate
+        )
     }
 }

@@ -1,6 +1,6 @@
 import Foundation
 
-enum RSSRadarSection: String, CaseIterable, Identifiable {
+enum RSSRadarSection: String, CaseIterable, Identifiable, Hashable {
     case today
     case topics
     case feeds

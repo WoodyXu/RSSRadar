@@ -141,7 +141,8 @@ let package = Package(
             dependencies: [
                 "RSSRadarProcessing",
                 "RSSRadarPersistence",
-                "RSSRadarAI"
+                "RSSRadarAI",
+                "RSSRadarExport"
             ],
             path: "Tests/RSSRadarProcessingTests",
             resources: [

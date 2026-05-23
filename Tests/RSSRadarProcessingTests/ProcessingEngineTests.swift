@@ -101,6 +101,44 @@ final class ProcessingEngineTests: XCTestCase {
         XCTAssertEqual(persistedArticles.first?.status, .parsed)
     }
 
+    func testDefaultExecutorPipelinesFeedScanIntoAnalysisAndTopicAssignment() async throws {
+        let repositories = try makeRepositories()
+        let sourceFeed = feed(id: "feed-1", status: .active)
+        try repositories.feeds.save(sourceFeed)
+        let executor = ProcessingEngineExecutor(
+            repositories: repositories,
+            loader: FixtureFeedDataLoader(fixtureName: "valid-rss"),
+            articleAnalyzer: PipelineArticleAnalyzer(),
+            topicAssigner: PipelineTopicAssigner(),
+            aiSettingsProvider: {
+                ProcessingAISettings(
+                    modelName: "gpt-pipeline",
+                    maxArticlesPerScan: 20,
+                    maxArticlesPerTopicBatch: 20
+                )
+            }
+        )
+        let engine = ProcessingEngine(repositories: repositories, executor: executor)
+        _ = try await engine.enqueueFeedScan(feedID: sourceFeed.id, scheduledAt: fixedDate)
+
+        await engine.runPendingJobsUntilIdle()
+
+        let jobs = try repositories.processingJobs.fetchAll()
+        let persistedArticles = try repositories.articles.fetch(feedID: sourceFeed.id)
+        let article = try XCTUnwrap(persistedArticles.first)
+        let analysis = try XCTUnwrap(repositories.articleAnalyses.fetch(articleID: article.id))
+        let candidateTopics = try repositories.topics.fetch(status: .candidate)
+        let topicRelationships = try repositories.topicArticles.fetchForArticle(id: article.id)
+
+        XCTAssertEqual(jobs.filter { $0.jobType == .fetchFeed && $0.status == .completed }.count, 1)
+        XCTAssertEqual(jobs.filter { $0.jobType == .analyzeArticle && $0.status == .completed }.count, 1)
+        XCTAssertEqual(jobs.filter { $0.jobType == .assignTopics && $0.status == .completed }.count, 1)
+        XCTAssertEqual(article.status, .assigned)
+        XCTAssertEqual(analysis.modelName, "gpt-pipeline")
+        XCTAssertEqual(candidateTopics.map(\.name), ["Pipeline topic"])
+        XCTAssertEqual(topicRelationships.count, 1)
+    }
+
     func testFailedJobRetriesTwiceThenBecomesFailed() async throws {
         let repositories = try makeRepositories()
         let engine = ProcessingEngine(
@@ -212,6 +250,42 @@ final class ProcessingEngineTests: XCTestCase {
         XCTAssertTrue(failedArticle.errorMessage?.contains("emptyField") == true)
         XCTAssertNil(persistedAnalysis)
         XCTAssertEqual(logs.filter { $0.message == "Processing job failed" }.count, 1)
+    }
+
+    func testExhaustedArticleAnalysisProviderFailureMarksArticleFailedWithoutAnalysis() async throws {
+        let repositories = try makeRepositories()
+        let feed = feed(id: "feed-1", status: .active)
+        let article = article(id: "article-1", feedID: feed.id, status: .parsed)
+        try repositories.feeds.save(feed)
+        try repositories.articles.save(article)
+        let engine = ProcessingEngine(
+            repositories: repositories,
+            executor: ProviderFailingProcessingJobExecutor(),
+            configuration: ProcessingEngineConfiguration(maxConcurrentAnalyzeArticleJobs: 1)
+        )
+        let analysisJob = ProcessingJob(
+            id: "provider-failure-job",
+            jobType: .analyzeArticle,
+            entityType: .article,
+            entityID: article.id,
+            payload: ["model_name": "gpt-test"],
+            maxAttempts: 1,
+            scheduledAt: fixedDate,
+            createdAt: fixedDate,
+            updatedAt: fixedDate
+        )
+        try repositories.processingJobs.save(analysisJob)
+
+        await engine.runPendingJobs(now: fixedDate.addingTimeInterval(1))
+
+        let failedJob = try XCTUnwrap(repositories.processingJobs.fetch(id: analysisJob.id))
+        let failedArticle = try XCTUnwrap(repositories.articles.fetch(id: article.id))
+        let persistedAnalysis = try repositories.articleAnalyses.fetch(articleID: article.id)
+
+        XCTAssertEqual(failedJob.status, .failed)
+        XCTAssertEqual(failedArticle.status, .failed)
+        XCTAssertTrue(failedArticle.errorMessage?.contains("Missing assistant message content") == true)
+        XCTAssertNil(persistedAnalysis)
     }
 
     func testManualRetryRequeuesFailedJob() async throws {
@@ -411,6 +485,12 @@ private actor ValidationFailingProcessingJobExecutor: ProcessingJobExecuting {
     }
 }
 
+private actor ProviderFailingProcessingJobExecutor: ProcessingJobExecuting {
+    func execute(job: ProcessingJob) async throws {
+        throw AIProviderError.invalidResponse("Missing assistant message content.")
+    }
+}
+
 private actor FailingProcessingJobExecutor: ProcessingJobExecuting {
     func execute(job: ProcessingJob) async throws {
         throw ProcessingEngineTestError.plannedFailure(job.id)
@@ -428,6 +508,57 @@ private actor SelectivelyFailingProcessingJobExecutor: ProcessingJobExecuting {
         if failingJobIDs.contains(job.id) {
             throw ProcessingEngineTestError.plannedFailure(job.id)
         }
+    }
+}
+
+private struct PipelineArticleAnalyzer: ArticleAnalyzing {
+    func analyze(
+        article: Article,
+        sourceTitle: String,
+        modelName: String,
+        generatedAt: Date
+    ) async throws -> ArticleAnalysis {
+        ArticleAnalysis(
+            articleID: article.id,
+            summary: "Pipeline summary",
+            keyPoints: ["Pipeline key point"],
+            entities: [sourceTitle],
+            claims: ["Pipeline claim"],
+            events: ["Pipeline event"],
+            metrics: ["Pipeline metric"],
+            contentType: .analysis,
+            possibleTopics: ["Pipeline topic"],
+            importanceScore: 0.72,
+            modelName: modelName,
+            generatedAt: generatedAt
+        )
+    }
+}
+
+private struct PipelineTopicAssigner: TopicAssigning {
+    func assignTopics(
+        analyses: [ArticleAnalysis],
+        existingTopics: [Topic],
+        modelName: String,
+        assignedAt: Date
+    ) async throws -> TopicAssignmentResult {
+        TopicAssignmentResult(
+            assignments: analyses.map { analysis in
+                TopicAssignment(
+                    articleID: analysis.articleID,
+                    newTopic: NewTopicCandidate(
+                        name: "Pipeline topic",
+                        description: "Topic created by the post-scan pipeline.",
+                        entities: analysis.entities,
+                        importanceScore: analysis.importanceScore
+                    ),
+                    confidence: 0.87,
+                    reason: "The analysis belongs to the pipeline topic.",
+                    contributionType: .newEvent
+                )
+            },
+            modelName: modelName
+        )
     }
 }
 
