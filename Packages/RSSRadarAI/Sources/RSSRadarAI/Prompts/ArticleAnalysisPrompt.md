@@ -6,8 +6,6 @@ Input fields:
 - title: {{title}}
 - source: {{source}}
 - published_at: {{published_at}}
-- url: {{url}}
-- rss_summary: {{rss_summary}}
 - content: {{content}}
 
 Return this JSON object:

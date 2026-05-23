@@ -160,6 +160,74 @@ public actor ProcessingEngine {
         return jobs
     }
 
+    @discardableResult
+    public func enqueueArticleAnalysis(
+        articleIDs: [String],
+        modelName: String,
+        priority: Int = 0,
+        scheduledAt: Date = Date()
+    ) throws -> [ProcessingJob] {
+        let normalizedArticleIDs = articleIDs.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !normalizedArticleIDs.isEmpty else {
+            return []
+        }
+        guard !modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ArticleAnalysisUseCaseError.missingModelName
+        }
+
+        let existingArticleIDs = try existingArticleAnalysisJobArticleIDs()
+        let articleIDsToQueue = normalizedArticleIDs.filter { !existingArticleIDs.contains($0) }
+        guard !articleIDsToQueue.isEmpty else {
+            return []
+        }
+
+        let now = Date()
+        var jobs: [ProcessingJob] = []
+        for articleID in articleIDsToQueue {
+            let job = ProcessingJob(
+                jobType: .analyzeArticle,
+                entityType: .article,
+                entityID: articleID,
+                payload: ["model_name": modelName],
+                priority: priority,
+                scheduledAt: scheduledAt,
+                createdAt: now,
+                updatedAt: now
+            )
+            try repositories.processingJobs.save(job)
+            try repositories.operationLogs.save(
+                OperationLog(
+                    level: .info,
+                    message: "Queued article analysis",
+                    context: ["job_id": job.id, "article_id": articleID],
+                    createdAt: now
+                )
+            )
+            jobs.append(job)
+        }
+
+        return jobs
+    }
+
+    @discardableResult
+    public func enqueueParsedArticleAnalysis(
+        modelName: String,
+        maxArticles: Int,
+        priority: Int = 0,
+        scheduledAt: Date = Date()
+    ) throws -> [ProcessingJob] {
+        let articles = try repositories.articles.fetch(status: .parsed)
+            .prefix(max(1, maxArticles))
+            .map(\.id)
+        return try enqueueArticleAnalysis(
+            articleIDs: Array(articles),
+            modelName: modelName,
+            priority: priority,
+            scheduledAt: scheduledAt
+        )
+    }
+
     public func runPendingJobs(now: Date = Date()) async {
         let readyJobs: [ProcessingJob]
         do {
@@ -188,6 +256,31 @@ public actor ProcessingEngine {
                     )
                 }
             }
+        }
+    }
+
+    public func runPendingJobsUntilIdle(maxPasses: Int = 100) async {
+        let boundedMaxPasses = max(1, maxPasses)
+        for _ in 0..<boundedMaxPasses {
+            let readyJobs: [ProcessingJob]
+            do {
+                readyJobs = try repositories.processingJobs.fetchReady(now: Date(), limit: fetchLimit)
+            } catch {
+                try? repositories.operationLogs.save(
+                    OperationLog(
+                        level: .error,
+                        message: "Failed to load pending jobs",
+                        context: ["error": String(describing: error)],
+                        createdAt: Date()
+                    )
+                )
+                return
+            }
+            guard !readyJobs.isEmpty else {
+                return
+            }
+
+            await runPendingJobs(now: Date())
         }
     }
 
@@ -221,21 +314,7 @@ public actor ProcessingEngine {
 
     @discardableResult
     public func recoverInterruptedJobs(now: Date = Date()) throws -> Int {
-        let recoveredCount = try repositories.processingJobs.recoverInterruptedJobs(
-            scheduledAt: now,
-            updatedAt: now
-        )
-        if recoveredCount > 0 {
-            try repositories.operationLogs.save(
-                OperationLog(
-                    level: .warning,
-                    message: "Recovered interrupted processing jobs",
-                    context: ["recovered_count": String(recoveredCount)],
-                    createdAt: now
-                )
-            )
-        }
-        return recoveredCount
+        try ProcessingStartupRecoveryUseCase(repositories: repositories).recover(now: now)
     }
 
     private var fetchLimit: Int {
@@ -262,6 +341,14 @@ public actor ProcessingEngine {
         }
 
         return selected
+    }
+
+    private func existingArticleAnalysisJobArticleIDs() throws -> Set<String> {
+        Set(
+            try repositories.processingJobs.fetchAll()
+                .filter { $0.jobType == .analyzeArticle && $0.entityType == .article }
+                .compactMap(\.entityID)
+        )
     }
 
     private static func run(
@@ -376,7 +463,6 @@ public actor ProcessingEngine {
         guard job.jobType == .analyzeArticle,
               job.entityType == .article,
               let articleID = job.entityID,
-              error is ArticleAnalysisValidationError,
               var article = try? repositories.articles.fetch(id: articleID) else {
             return
         }

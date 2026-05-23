@@ -37,6 +37,15 @@ public final class TopicArticleRepository {
         }
     }
 
+    public func fetchAll() throws -> [TopicArticle] {
+        try access.read { db in
+            try Row.fetchAll(
+                db,
+                sql: "SELECT * FROM topic_articles ORDER BY created_at DESC"
+            ).map(TopicArticle.init(row:))
+        }
+    }
+
     public func fetchForTopic(id: String) throws -> [TopicArticle] {
         try access.read { db in
             try Row.fetchAll(

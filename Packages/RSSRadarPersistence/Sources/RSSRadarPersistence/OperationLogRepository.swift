@@ -63,14 +63,6 @@ public final class OperationLogRepository {
 }
 
 private enum SensitiveLogContentValidator {
-    private static let markers = [
-        "api_key",
-        "api key",
-        "authorization",
-        "bearer ",
-        "sk-"
-    ]
-
     static func validate(_ log: OperationLog) throws {
         var values = [log.message]
         for (key, value) in log.context {
@@ -78,14 +70,7 @@ private enum SensitiveLogContentValidator {
             values.append(value)
         }
 
-        let containsSensitiveMarker = values.contains { value in
-            let normalized = value.lowercased()
-            return markers.contains { normalized.contains($0) }
-        }
-
-        if containsSensitiveMarker {
-            throw RSSRadarRepositoryError.sensitiveLogContent
-        }
+        try SensitiveContentValidator.validate(values)
     }
 }
 

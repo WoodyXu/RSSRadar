@@ -14,18 +14,19 @@ public final class TodayPageDataSource: @unchecked Sendable {
     public func load(now: Date = Date()) throws -> TodayPageSnapshot {
         let startOfDay = calendar.startOfDay(for: now)
         let topics = try repositories.topics.fetchAll()
+        let context = try TodayPageLoadContext(repositories: repositories)
         let activeTopics = topics.filter { $0.status == .active }
         let candidateTopics = topics.filter { $0.status == .candidate }
 
         let activeItems = try activeTopics.compactMap { topic in
-            try makeTopicItem(topic: topic, briefType: .full, since: startOfDay, now: now)
+            try makeTopicItem(topic: topic, briefType: .full, since: startOfDay, now: now, context: context)
         }
         let candidateItems = try candidateTopics.compactMap { topic in
-            try makeTopicItem(topic: topic, briefType: .preview, since: startOfDay, now: now)
+            try makeTopicItem(topic: topic, briefType: .preview, since: startOfDay, now: now, context: context)
         }
 
         return TodayPageSnapshot(
-            scanStatus: try makeScanStatus(since: startOfDay),
+            scanStatus: try makeScanStatus(since: startOfDay, context: context),
             importantTopics: sort(activeItems),
             newCandidateTopics: sort(candidateItems),
             trackedTopicUpdates: sort(activeItems.filter { !$0.latestChanges.isEmpty || $0.newArticleCount > 0 })
@@ -36,12 +37,13 @@ public final class TodayPageDataSource: @unchecked Sendable {
         topic: Topic,
         briefType: TopicBriefType,
         since: Date,
-        now: Date
+        now: Date,
+        context: TodayPageLoadContext
     ) throws -> TodayTopicItem? {
-        let relationships = try repositories.topicArticles.fetchForTopic(id: topic.id)
-        let relatedArticles = try relationships.compactMap { try repositories.articles.fetch(id: $0.articleID) }
+        let relationships = context.relationshipsByTopicID[topic.id, default: []]
+        let relatedArticles = relationships.compactMap { context.articlesByID[$0.articleID] }
         let newArticleCount = relationships.filter { $0.createdAt >= since }.count
-        let brief = try repositories.topicBriefs.fetch(topicID: topic.id, briefType: briefType)
+        let brief = context.briefsByTopicAndType[TodayBriefKey(topicID: topic.id, briefType: briefType)]
         let latestActivityAt = latestActivityDate(
             topic: topic,
             brief: brief,
@@ -54,7 +56,7 @@ public final class TodayPageDataSource: @unchecked Sendable {
         }
 
         let recentChanges = brief?.latestChanges.map(\.text) ?? []
-        let primarySources = try primarySources(for: relatedArticles)
+        let primarySources = primarySources(for: relatedArticles, context: context)
         let score = rankingScore(
             topic: topic,
             status: topic.status,
@@ -89,12 +91,12 @@ public final class TodayPageDataSource: @unchecked Sendable {
         return dates.max() ?? topic.updatedAt
     }
 
-    private func primarySources(for articles: [Article]) throws -> [String] {
+    private func primarySources(for articles: [Article], context: TodayPageLoadContext) -> [String] {
         var seen: Set<String> = []
         var sources: [String] = []
 
         for article in articles {
-            guard let feed = try repositories.feeds.fetch(id: article.feedID) else {
+            guard let feed = context.feedsByID[article.feedID] else {
                 continue
             }
             if seen.insert(feed.title).inserted {
@@ -105,21 +107,19 @@ public final class TodayPageDataSource: @unchecked Sendable {
         return sources
     }
 
-    private func makeScanStatus(since: Date) throws -> TodayScanStatus {
-        let feeds = try repositories.feeds.fetchAll()
-        let jobs = try repositories.processingJobs.fetchAll()
-        let articles = try repositories.articles.fetchAll()
+    private func makeScanStatus(since: Date, context: TodayPageLoadContext) throws -> TodayScanStatus {
         let logs = try repositories.operationLogs.fetchRecent(limit: 1)
 
-        let feedScanDates = feeds.compactMap(\.lastCheckedAt)
-        let jobFinishDates = jobs.compactMap(\.finishedAt)
+        let feedScanDates = context.feeds.compactMap(\.lastCheckedAt)
+        let jobFinishDates = context.jobs.compactMap(\.finishedAt)
         let lastScanAt = (feedScanDates + jobFinishDates).max()
-        let processedArticleCount = articles.filter { article in
-            article.updatedAt >= since && [.parsed, .analyzed, .assigned].contains(article.status)
-        }.count
-        let failedJobCount = jobs.filter { $0.status == .failed }.count
-        let failedArticleCount = articles.filter { $0.status == .failed }.count
-        let pendingJobCount = jobs.filter { $0.status == .pending || $0.status == .running }.count
+        let processedArticleCount = try repositories.articles.countUpdated(
+            since: since,
+            statuses: [.parsed, .analyzed, .assigned]
+        )
+        let failedJobCount = context.jobs.filter { $0.status == .failed }.count
+        let failedArticleCount = try repositories.articles.count(status: .failed)
+        let pendingJobCount = context.jobs.filter { $0.status == .pending || $0.status == .running }.count
 
         return TodayScanStatus(
             lastScanAt: lastScanAt,
@@ -161,6 +161,39 @@ public final class TodayPageDataSource: @unchecked Sendable {
             }
             return lhs.topic.id < rhs.topic.id
         }
+    }
+}
+
+private struct TodayBriefKey: Hashable {
+    var topicID: String
+    var briefType: TopicBriefType
+}
+
+private struct TodayPageLoadContext {
+    var feeds: [Feed]
+    var jobs: [ProcessingJob]
+    var feedsByID: [String: Feed]
+    var articlesByID: [String: Article]
+    var relationshipsByTopicID: [String: [TopicArticle]]
+    var briefsByTopicAndType: [TodayBriefKey: TopicBrief]
+
+    init(repositories: RSSRadarRepositories) throws {
+        feeds = try repositories.feeds.fetchAll()
+        jobs = try repositories.processingJobs.fetchAll()
+        let relationships = try repositories.topicArticles.fetchAll()
+        let relatedArticleIDs = Array(Set(relationships.map(\.articleID)))
+        let articles = try repositories.articles.fetch(ids: relatedArticleIDs)
+        feedsByID = Dictionary(uniqueKeysWithValues: feeds.map { ($0.id, $0) })
+        articlesByID = Dictionary(uniqueKeysWithValues: articles.map { ($0.id, $0) })
+        relationshipsByTopicID = Dictionary(
+            grouping: relationships,
+            by: \.topicID
+        )
+        briefsByTopicAndType = Dictionary(
+            uniqueKeysWithValues: try repositories.topicBriefs.fetchAll().map {
+                (TodayBriefKey(topicID: $0.topicID, briefType: $0.briefType), $0)
+            }
+        )
     }
 }
 

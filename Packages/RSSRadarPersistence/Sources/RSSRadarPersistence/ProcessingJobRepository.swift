@@ -10,6 +10,8 @@ public final class ProcessingJobRepository {
     }
 
     public func save(_ job: ProcessingJob) throws {
+        try SensitiveProcessingJobContentValidator.validate(job)
+
         try access.write { db in
             try db.execute(
                 sql: """
@@ -89,6 +91,8 @@ public final class ProcessingJobRepository {
         finishedAt: Date? = nil,
         updatedAt: Date = Date()
     ) throws {
+        try SensitiveProcessingJobContentValidator.validate(lastErrorMessage: lastErrorMessage)
+
         try access.write { db in
             try db.execute(
                 sql: """
@@ -122,6 +126,8 @@ public final class ProcessingJobRepository {
         finishedAt: Date? = nil,
         updatedAt: Date = Date()
     ) throws {
+        try SensitiveProcessingJobContentValidator.validate(lastErrorMessage: lastErrorMessage)
+
         try access.write { db in
             try db.execute(
                 sql: """
@@ -177,6 +183,23 @@ public final class ProcessingJobRepository {
         try access.write { db in
             try db.execute(sql: "DELETE FROM processing_jobs WHERE id = ?", arguments: [id])
         }
+    }
+}
+
+private enum SensitiveProcessingJobContentValidator {
+    static func validate(_ job: ProcessingJob) throws {
+        var values: [String] = []
+        values.append(contentsOf: job.payload.keys)
+        values.append(contentsOf: job.payload.values)
+        if let lastErrorMessage = job.lastErrorMessage {
+            values.append(lastErrorMessage)
+        }
+        try SensitiveContentValidator.validate(values)
+    }
+
+    static func validate(lastErrorMessage: String?) throws {
+        guard let lastErrorMessage else { return }
+        try SensitiveContentValidator.validate([lastErrorMessage])
     }
 }
 

@@ -49,6 +49,21 @@ public final class ArticleRepository {
         }
     }
 
+    public func fetch(ids: [String]) throws -> [Article] {
+        guard !ids.isEmpty else {
+            return []
+        }
+
+        let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ", ")
+        return try access.read { db in
+            try Row.fetchAll(
+                db,
+                sql: "SELECT * FROM articles WHERE id IN (\(placeholders))",
+                arguments: StatementArguments(ids)
+            ).map(Article.init(row:))
+        }
+    }
+
     public func fetch(feedID: String) throws -> [Article] {
         try access.read { db in
             try Row.fetchAll(
@@ -59,6 +74,11 @@ public final class ArticleRepository {
         }
     }
 
+    public func fetchGroupedByFeedID() throws -> [String: [Article]] {
+        let articles = try fetchAll()
+        return Dictionary(grouping: articles, by: \.feedID)
+    }
+
     public func fetch(status: ArticleStatus) throws -> [Article] {
         try access.read { db in
             try Row.fetchAll(
@@ -66,6 +86,37 @@ public final class ArticleRepository {
                 sql: "SELECT * FROM articles WHERE status = ? ORDER BY created_at DESC",
                 arguments: [status.rawValue]
             ).map(Article.init(row:))
+        }
+    }
+
+    public func countUpdated(since: Date, statuses: [ArticleStatus]) throws -> Int {
+        guard !statuses.isEmpty else {
+            return 0
+        }
+
+        let placeholders = Array(repeating: "?", count: statuses.count).joined(separator: ", ")
+        var arguments = StatementArguments(statuses.map(\.rawValue))
+        arguments += [DatabaseCoding.string(from: since)]
+        return try access.read { db in
+            try Int.fetchOne(
+                db,
+                sql: """
+                    SELECT COUNT(*)
+                    FROM articles
+                    WHERE status IN (\(placeholders)) AND updated_at >= ?
+                    """,
+                arguments: arguments
+            ) ?? 0
+        }
+    }
+
+    public func count(status: ArticleStatus) throws -> Int {
+        try access.read { db in
+            try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM articles WHERE status = ?",
+                arguments: [status.rawValue]
+            ) ?? 0
         }
     }
 

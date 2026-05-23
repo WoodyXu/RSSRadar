@@ -67,6 +67,12 @@ public final class UserCorrectionRepository {
             ).map(UserCorrection.init(row:))
         }
     }
+
+    public func delete(id: String) throws {
+        try access.write { db in
+            try db.execute(sql: "DELETE FROM user_corrections WHERE id = ?", arguments: [id])
+        }
+    }
 }
 
 private extension UserCorrection {
