@@ -98,7 +98,7 @@ public final class TopicAssignmentService: TopicAssigning, @unchecked Sendable {
                 model: modelName,
                 messages: [AIMessage(role: .user, content: prompt)],
                 temperature: 0.1,
-                maxTokens: 2_400
+                maxTokens: 8192
             )
         )
         let assignments = try decodeOutput(

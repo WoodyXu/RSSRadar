@@ -69,7 +69,7 @@ public final class TopicBriefGenerationService: TopicBriefGenerating, @unchecked
                 model: modelName,
                 messages: [AIMessage(role: .user, content: prompt)],
                 temperature: 0.2,
-                maxTokens: briefType == .full ? 2_400 : 1_200
+                maxTokens: briefType == .full ? 8192 : 4096
             )
         )
         let output = try decodeOutput(from: response.text, validArticleIDs: Set(relatedArticles.map(\.article.id)))

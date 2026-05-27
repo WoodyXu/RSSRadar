@@ -4,7 +4,7 @@ import RSSRadarCore
 import RSSRadarPersistence
 
 public final class TopicAssignmentUseCase: @unchecked Sendable {
-    public static let defaultBatchSize = 20
+    public static let defaultBatchSize = 50
 
     private let repositories: RSSRadarRepositories
     private let topicAssigner: any TopicAssigning
@@ -31,14 +31,16 @@ public final class TopicAssignmentUseCase: @unchecked Sendable {
         guard !normalizedArticleIDs.isEmpty else {
             throw TopicAssignmentUseCaseError.emptyArticleIDs
         }
-        guard normalizedArticleIDs.count <= batchSize else {
-            throw TopicAssignmentUseCaseError.batchTooLarge(normalizedArticleIDs.count, max: batchSize)
-        }
+
+        // 如果本批次文章数量不足 batchSize，则全选；否则只选前 batchSize 篇。
+        let selectedArticleIDs = Array(normalizedArticleIDs.prefix(batchSize))
+        let skippedArticleIDs = Array(normalizedArticleIDs.dropFirst(batchSize))
+
         guard !modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw TopicAssignmentUseCaseError.missingModelName
         }
 
-        let analyses = try normalizedArticleIDs.map { articleID in
+        let analyses = try selectedArticleIDs.map { articleID in
             guard let analysis = try repositories.articleAnalyses.fetch(articleID: articleID) else {
                 throw TopicAssignmentUseCaseError.analysisNotFound(articleID)
             }

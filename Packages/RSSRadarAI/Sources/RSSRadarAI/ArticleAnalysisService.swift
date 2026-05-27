@@ -41,7 +41,7 @@ public final class ArticleAnalysisService: ArticleAnalyzing, @unchecked Sendable
                 model: modelName,
                 messages: [AIMessage(role: .user, content: prompt)],
                 temperature: 0.2,
-                maxTokens: 1_200
+                maxTokens: 4096
             )
         )
         let output = try decodeOutput(from: response.text)
