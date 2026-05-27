@@ -1,5 +1,34 @@
 # Progress
 
+## 2026-05-27 - Candidate topic Track and Ignore controls
+
+Added candidate topic management controls to the Topics page.
+
+- Added `Track` and `Ignore` buttons to the Topic Detail header when the selected topic is a candidate.
+- Wired the buttons through `TopicsViewModel` to `CandidateTopicManagementUseCase.trackCandidate` and `ignoreCandidate`.
+- Refreshed the topic list and detail after status changes.
+- Preserved the current selection in All view; in Candidate-filtered view, processed topics move out of the filtered list.
+- Kept the actions local-only: they do not trigger AI calls, scans, TopicBrief generation, or direct SQLite access from SwiftUI.
+
+Verification:
+
+- `swift build` passed.
+
+## 2026-05-27 - Today and Topics app UI data hookup
+
+Connected the app shell's Today and Topics navigation items to local topic data.
+
+- Replaced the Today and Topics placeholder branches in `AppRootView`.
+- Added `TodayViewModel` and `TodayView` backed by `TodayPageDataSource`.
+- Added `TopicsViewModel` and `TopicsView` backed by `TopicRepository.fetchAll()` plus `TopicDetailDataSource`.
+- Added a reusable app-level `TopicDetailView` for cached brief sections, evidence, and related articles.
+- Added topic status display helpers for UI labels.
+- Kept the new UI read-only: it does not trigger scans, AI calls, TopicBrief generation, or direct SQLite access.
+
+Verification:
+
+- `swift build` passed.
+
 ## 2026-05-27 - AI JSON stability and diagnostics
 
 Completed an AI processing reliability milestone focused on provider diagnostics and JSON output stability.

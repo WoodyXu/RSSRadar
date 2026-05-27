@@ -59,6 +59,21 @@ extension ProcessingJobStatus {
     }
 }
 
+extension TopicStatus {
+    var appDisplayName: String {
+        switch self {
+        case .candidate:
+            "candidate"
+        case .active:
+            "active"
+        case .ignored:
+            "ignored"
+        case .archived:
+            "archived"
+        }
+    }
+}
+
 extension ScanMode: Identifiable {
     public var id: String {
         rawValue
