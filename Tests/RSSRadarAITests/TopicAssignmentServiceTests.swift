@@ -37,10 +37,11 @@ final class TopicAssignmentServiceTests: XCTestCase {
 
         XCTAssertEqual(request.model, "gpt-test")
         XCTAssertEqual(request.temperature, 0.1)
-        XCTAssertEqual(request.maxTokens, 2_400)
+        XCTAssertEqual(request.maxTokens, 8_192)
+        XCTAssertEqual(request.responseFormat, .jsonObject)
         XCTAssertTrue(request.messages[0].content.contains("\"article_id\":\"article-1\""))
         XCTAssertTrue(request.messages[0].content.contains("\"topic_id\":\"topic-existing\""))
-        XCTAssertTrue(request.messages[0].content.contains("Return this JSON object"))
+        XCTAssertTrue(request.messages[0].content.contains("Return exactly this JSON object"))
     }
 
     func testAssignTopicsRejectsBroadNewTopicName() async throws {

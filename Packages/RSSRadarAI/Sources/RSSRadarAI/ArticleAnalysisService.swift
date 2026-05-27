@@ -11,6 +11,8 @@ public protocol ArticleAnalyzing: Sendable {
 }
 
 public final class ArticleAnalysisService: ArticleAnalyzing, @unchecked Sendable {
+    private static let maxPromptContentCharacters = 24_000
+
     private let provider: any AIProvider
     private let promptStore: PromptTemplateStore
     private let jsonDecoder: JSONDecoder
@@ -41,7 +43,8 @@ public final class ArticleAnalysisService: ArticleAnalyzing, @unchecked Sendable
                 model: modelName,
                 messages: [AIMessage(role: .user, content: prompt)],
                 temperature: 0.2,
-                maxTokens: 4096
+                maxTokens: 8192,
+                responseFormat: .jsonObject
             )
         )
         let output = try decodeOutput(from: response.text)
@@ -70,8 +73,23 @@ public final class ArticleAnalysisService: ArticleAnalyzing, @unchecked Sendable
             "published_at": article.publishedAt.map(dateFormatter.string(from:)) ?? "",
             "url": article.url.absoluteString,
             "rss_summary": article.rssSummary ?? "",
-            "content": article.content ?? ""
+            "content": budgetedContent(article.content ?? "")
         ]
+    }
+
+    private func budgetedContent(_ content: String) -> String {
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > Self.maxPromptContentCharacters else {
+            return trimmed
+        }
+
+        let prefix = trimmed.prefix(Self.maxPromptContentCharacters)
+        return """
+        \(prefix)
+
+        [Content truncated by RSSRadar at \(Self.maxPromptContentCharacters) characters to keep the AI request within \
+        budget.]
+        """
     }
 
     private func decodeOutput(from text: String) throws -> ArticleAnalysisOutput {

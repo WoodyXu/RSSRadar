@@ -52,11 +52,27 @@ final class ArticleAnalysisServiceTests: XCTestCase {
 
         XCTAssertEqual(request.model, "gpt-test")
         XCTAssertEqual(request.temperature, 0.2)
-        XCTAssertEqual(request.maxTokens, 1_200)
+        XCTAssertEqual(request.maxTokens, 8_192)
+        XCTAssertEqual(request.responseFormat, .jsonObject)
         XCTAssertEqual(request.messages.count, 1)
         XCTAssertTrue(request.messages[0].content.contains("source: Example Feed"))
         XCTAssertTrue(request.messages[0].content.contains("title: OpenAI improves local-first API workflow"))
-        XCTAssertTrue(request.messages[0].content.contains("Return this JSON object"))
+        XCTAssertTrue(request.messages[0].content.contains("Return exactly this JSON object"))
+    }
+
+    func testAnalyzeArticleTruncatesLongContentBeforePrompting() async throws {
+        let provider = RecordingAIProvider(response: AIProviderResponse(text: validJSON(), model: "gpt-fixture"))
+        let service = ArticleAnalysisService(provider: provider)
+        var longArticle = article()
+        longArticle.content = String(repeating: "A", count: 30_000)
+
+        _ = try await service.analyze(article: longArticle, sourceTitle: "Example Feed", modelName: "gpt-test")
+
+        let requests = await provider.allRequests()
+        let request = try XCTUnwrap(requests.first)
+        let prompt = request.messages[0].content
+        XCTAssertTrue(prompt.contains("[Content truncated by RSSRadar at 24000 characters"))
+        XCTAssertFalse(prompt.contains(String(repeating: "A", count: 25_000)))
     }
 
     func testAnalyzeArticleRejectsInvalidJSONFixture() async throws {

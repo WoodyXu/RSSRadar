@@ -245,10 +245,8 @@ public final class TopicBriefGenerationUseCase: @unchecked Sendable {
     var seenArticleIDs = Set<String>()
     var result: [TopicBriefSourceArticle] = []
 
-    for sourceArticle in groups.flatMap({ $0 }) {
-      if seenArticleIDs.insert(sourceArticle.article.id).inserted {
-        result.append(sourceArticle)
-      }
+    for sourceArticle in groups.flatMap({ $0 }) where seenArticleIDs.insert(sourceArticle.article.id).inserted {
+      result.append(sourceArticle)
     }
 
     return result
@@ -285,7 +283,7 @@ public final class TopicBriefGenerationUseCase: @unchecked Sendable {
       }
     }
 
-    return bestArticlePerMonth
+    return Array(bestArticlePerMonth
       .sorted { lhs, rhs in
         let lhsScore = historicalNodeScore(lhs)
         let rhsScore = historicalNodeScore(rhs)
@@ -296,8 +294,7 @@ public final class TopicBriefGenerationUseCase: @unchecked Sendable {
 
         return lhsScore > rhsScore
       }
-      .prefix(limit)
-      .map { $0 }
+      .prefix(limit))
   }
 
   private func isHistoricalNodeCandidate(_ sourceArticle: TopicBriefSourceArticle) -> Bool {

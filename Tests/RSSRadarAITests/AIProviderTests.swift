@@ -32,7 +32,7 @@ final class AIProviderTests: XCTestCase {
 
     func testOpenAICompatibleProviderBuildsChatCompletionsRequest() async throws {
         MockURLProtocol.responseData = Data("""
-        {"model":"gpt-test","choices":[{"message":{"content":"openai text"}}]}
+        {"model":"gpt-test","choices":[{"message":{"content":"openai text"},"finish_reason":"stop"}]}
         """.utf8)
         MockURLProtocol.statusCode = 200
 
@@ -46,7 +46,7 @@ final class AIProviderTests: XCTestCase {
         let capturedRequest = try XCTUnwrap(MockURLProtocol.capturedRequests.first)
         let body = try decodedJSONBody(from: capturedRequest)
 
-        XCTAssertEqual(response, AIProviderResponse(text: "openai text", model: "gpt-test"))
+        XCTAssertEqual(response, AIProviderResponse(text: "openai text", model: "gpt-test", finishReason: "stop"))
         XCTAssertEqual(capturedRequest.url?.absoluteString, "https://api.openai.com/v1/chat/completions")
         XCTAssertEqual(capturedRequest.httpMethod, "POST")
         XCTAssertEqual(capturedRequest.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
@@ -60,6 +60,57 @@ final class AIProviderTests: XCTestCase {
             ["role": "system", "content": "You are concise."],
             ["role": "user", "content": "Summarize this."]
         ])
+    }
+
+    func testOpenAICompatibleProviderSupportsJSONResponseFormat() async throws {
+        MockURLProtocol.responseData = Data("""
+        {"model":"gpt-test","choices":[{"message":{"content":"{}"},"finish_reason":"stop"}]}
+        """.utf8)
+        MockURLProtocol.statusCode = 200
+
+        let request = AIProviderRequest(
+            model: "test-model",
+            messages: [AIMessage(role: .user, content: "Return JSON.")],
+            responseFormat: .jsonObject
+        )
+        let provider = URLSessionAIProvider(
+            kind: .openAICompatible,
+            apiKey: "test-key",
+            session: makeMockSession()
+        )
+
+        _ = try await provider.complete(request)
+        let capturedRequest = try XCTUnwrap(MockURLProtocol.capturedRequests.first)
+        let body = try decodedJSONBody(from: capturedRequest)
+        let responseFormat = try XCTUnwrap(body["response_format"] as? [String: String])
+
+        XCTAssertEqual(responseFormat["type"], "json_object")
+    }
+
+    func testOpenAICompatibleProviderIncludesDiagnosticsForEmptyAssistantContent() async throws {
+        MockURLProtocol.responseData = Data("""
+        {"model":"gpt-test","choices":[{"message":{"content":""},"finish_reason":"length"}]}
+        """.utf8)
+        MockURLProtocol.statusCode = 200
+
+        let provider = URLSessionAIProvider(
+            kind: .openAICompatible,
+            apiKey: "test-key",
+            session: makeMockSession()
+        )
+
+        do {
+            _ = try await provider.complete(sampleRequest)
+            XCTFail("Expected invalid response")
+        } catch let error as AIProviderError {
+            guard case let .invalidResponse(message, diagnostics) = error else {
+                return XCTFail("Expected invalidResponse, got \(error)")
+            }
+            XCTAssertEqual(message, "Missing assistant message content.")
+            XCTAssertEqual(diagnostics?.statusCode, 200)
+            XCTAssertEqual(diagnostics?.finishReason, "length")
+            XCTAssertTrue(diagnostics?.responsePreview?.contains("\"finish_reason\":\"length\"") == true)
+        }
     }
 
     func testCustomProviderUsesCustomBaseURLWithChatCompletionsFormat() async throws {

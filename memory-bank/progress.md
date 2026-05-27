@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-05-27 - AI JSON stability and diagnostics
+
+Completed an AI processing reliability milestone focused on provider diagnostics and JSON output stability.
+
+- Added JSON response format support to OpenAI-compatible/custom chat completions requests.
+- Captured OpenAI-compatible `finish_reason` in provider responses.
+- Added structured provider diagnostics for empty assistant content, including status, finish reason, and a bounded response preview.
+- Added AI diagnostic fields to processing failure logs without storing API keys, full request bodies, or article text.
+- Increased article analysis output budget to `8192` tokens.
+- Added a 24,000-character article content budget before prompt rendering to reduce long-input truncation risk.
+- Tightened article analysis, topic assignment, topic brief, and candidate preview prompts to require raw JSON only and smaller bounded arrays.
+- Removed an unused topic assignment variable that produced a Swift compiler warning.
+
+Verification:
+
+- `swift test --filter AIProviderTests --filter ArticleAnalysisServiceTests --filter ProcessingEngineTests` passed with 25 tests and 0 failures.
+- `make verify` passed: SwiftLint 0 violations, privacy audit passed, and `swift test` passed with 158 tests and 0 failures.
+
 ## 2026-05-20 - Step 1: macOS SwiftUI project skeleton
 
 Completed implementation-plan Step 1.

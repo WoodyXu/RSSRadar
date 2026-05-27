@@ -32,7 +32,8 @@ final class TopicBriefGenerationServiceTests: XCTestCase {
         XCTAssertEqual(brief.evidence.first?.sourceName, "Example Feed")
         XCTAssertEqual(brief.relatedArticleIDs, ["article-1"])
         XCTAssertEqual(request.model, "gpt-test")
-        XCTAssertEqual(request.maxTokens, 2_400)
+        XCTAssertEqual(request.maxTokens, 8_192)
+        XCTAssertEqual(request.responseFormat, .jsonObject)
         XCTAssertTrue(request.messages[0].content.contains("\"topic_id\":\"topic-1\""))
         XCTAssertTrue(request.messages[0].content.contains("\"article_id\":\"article-1\""))
         XCTAssertTrue(request.messages[0].content.contains("Generate a full Chinese intelligence brief"))
@@ -65,7 +66,8 @@ final class TopicBriefGenerationServiceTests: XCTestCase {
         XCTAssertEqual(brief.timeline, [])
         XCTAssertEqual(brief.viewpoints, [])
         XCTAssertEqual(brief.modelName, "gpt-test")
-        XCTAssertEqual(request.maxTokens, 1_200)
+        XCTAssertEqual(request.maxTokens, 4_096)
+        XCTAssertEqual(request.responseFormat, .jsonObject)
         XCTAssertTrue(request.messages[0].content.contains("candidate topic preview writer"))
     }
 

@@ -34,7 +34,6 @@ public final class TopicAssignmentUseCase: @unchecked Sendable {
 
         // 如果本批次文章数量不足 batchSize，则全选；否则只选前 batchSize 篇。
         let selectedArticleIDs = Array(normalizedArticleIDs.prefix(batchSize))
-        let skippedArticleIDs = Array(normalizedArticleIDs.dropFirst(batchSize))
 
         guard !modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw TopicAssignmentUseCaseError.missingModelName

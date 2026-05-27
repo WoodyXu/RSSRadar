@@ -169,10 +169,10 @@ final class TopicAssignmentUseCaseTests: XCTestCase {
         XCTAssertEqual(persistedBriefJob.payload["model_name"], "gpt-topic")
     }
 
-    func testEnqueueTopicAssignmentCreatesTwentyArticleBatches() async throws {
+    func testEnqueueTopicAssignmentCreatesDefaultSizedArticleBatches() async throws {
         let repositories = try makeRepositories()
         let engine = ProcessingEngine(repositories: repositories, executor: NoOpExecutor())
-        let articleIDs = (1...21).map { "article-\($0)" }
+        let articleIDs = (1...(TopicAssignmentUseCase.defaultBatchSize + 1)).map { "article-\($0)" }
 
         let jobs = try await engine.enqueueTopicAssignment(
             articleIDs: articleIDs,
@@ -181,8 +181,11 @@ final class TopicAssignmentUseCaseTests: XCTestCase {
         )
 
         XCTAssertEqual(jobs.count, 2)
-        XCTAssertEqual(jobs[0].payload["article_ids"]?.split(separator: ",").count, 20)
-        XCTAssertEqual(jobs[1].payload["article_ids"], "article-21")
+        XCTAssertEqual(
+            jobs[0].payload["article_ids"]?.split(separator: ",").count,
+            TopicAssignmentUseCase.defaultBatchSize
+        )
+        XCTAssertEqual(jobs[1].payload["article_ids"], "article-\(TopicAssignmentUseCase.defaultBatchSize + 1)")
         XCTAssertEqual(try repositories.processingJobs.fetch(status: .pending).count, 2)
     }
 

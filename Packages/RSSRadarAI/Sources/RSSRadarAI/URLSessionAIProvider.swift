@@ -116,10 +116,19 @@ public final class URLSessionAIProvider: AIProvider, @unchecked Sendable {
         switch kind {
         case .openAICompatible, .custom:
             let response = try decoder.decode(OpenAICompatibleResponseBody.self, from: data)
-            guard let text = response.choices.first?.message.content, text.isEmpty == false else {
-                throw AIProviderError.invalidResponse("Missing assistant message content.")
+            let choice = response.choices.first
+            let text = choice?.message.content?.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let text, text.isEmpty == false else {
+                throw AIProviderError.invalidResponse(
+                    "Missing assistant message content.",
+                    diagnostics: AIProviderResponseDiagnostics(
+                        statusCode: 200,
+                        finishReason: choice?.finishReason,
+                        responsePreview: Self.responsePreview(from: data)
+                    )
+                )
             }
-            return AIProviderResponse(text: text, model: response.model)
+            return AIProviderResponse(text: text, model: response.model, finishReason: choice?.finishReason)
         case .anthropic:
             let response = try decoder.decode(AnthropicResponseBody.self, from: data)
             let text = response.content
@@ -132,18 +141,34 @@ public final class URLSessionAIProvider: AIProvider, @unchecked Sendable {
             return AIProviderResponse(text: text, model: response.model)
         }
     }
+
+    private static func responsePreview(from data: Data, limit: Int = 500) -> String? {
+        guard let text = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        let normalized = text
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else {
+            return nil
+        }
+        return String(normalized.prefix(limit))
+    }
 }
 private struct OpenAICompatibleRequestBody: Encodable {
     var model: String
     var messages: [OpenAICompatibleMessage]
     var temperature: Double?
     var maxTokens: Int?
+    var responseFormat: OpenAICompatibleResponseFormat?
 
     enum CodingKeys: String, CodingKey {
         case model
         case messages
         case temperature
         case maxTokens = "max_tokens"
+        case responseFormat = "response_format"
     }
 
     init(from request: AIProviderRequest) {
@@ -151,6 +176,18 @@ private struct OpenAICompatibleRequestBody: Encodable {
         messages = request.messages.map(OpenAICompatibleMessage.init)
         temperature = request.temperature
         maxTokens = request.maxTokens
+        responseFormat = request.responseFormat.map(OpenAICompatibleResponseFormat.init)
+    }
+}
+
+private struct OpenAICompatibleResponseFormat: Encodable {
+    var type: String
+
+    init(_ format: AIResponseFormat) {
+        switch format {
+        case .jsonObject:
+            type = "json_object"
+        }
     }
 }
 
@@ -166,15 +203,21 @@ private struct OpenAICompatibleMessage: Codable {
 
 private struct OpenAICompatibleResponseBody: Decodable {
     var model: String?
-    var choices: [Choice]
+    var choices: [OpenAICompatibleChoice]
+}
 
-    struct Choice: Decodable {
-        var message: Message
-    }
+private struct OpenAICompatibleChoice: Decodable {
+    var message: OpenAICompatibleResponseMessage
+    var finishReason: String?
 
-    struct Message: Decodable {
-        var content: String
+    enum CodingKeys: String, CodingKey {
+        case message
+        case finishReason = "finish_reason"
     }
+}
+
+private struct OpenAICompatibleResponseMessage: Decodable {
+    var content: String?
 }
 
 private struct AnthropicRequestBody: Encodable {

@@ -11,7 +11,7 @@ final class PromptTemplateStoreTests: XCTestCase {
 
             XCTAssertEqual(template.kind, kind)
             XCTAssertFalse(template.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            XCTAssertTrue(template.content.contains("Return this JSON object"))
+            XCTAssertTrue(template.content.contains("Return exactly this JSON object"))
         }
     }
 

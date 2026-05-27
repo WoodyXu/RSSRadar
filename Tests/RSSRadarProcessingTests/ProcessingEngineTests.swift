@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import Foundation
 import RSSRadarAI
 import RSSRadarCore
@@ -6,6 +7,7 @@ import RSSRadarPersistence
 import RSSRadarProcessing
 import XCTest
 
+// swiftlint:disable:next type_body_length
 final class ProcessingEngineTests: XCTestCase {
     func testEnqueueScanAllFeedsCreatesJobsForNonPausedFeeds() async throws {
         let repositories = try makeRepositories()
@@ -281,11 +283,18 @@ final class ProcessingEngineTests: XCTestCase {
         let failedJob = try XCTUnwrap(repositories.processingJobs.fetch(id: analysisJob.id))
         let failedArticle = try XCTUnwrap(repositories.articles.fetch(id: article.id))
         let persistedAnalysis = try repositories.articleAnalyses.fetch(articleID: article.id)
+        let failureLog = try XCTUnwrap(
+            repositories.operationLogs.fetchRecent(limit: 10).first { $0.message == "Processing job failed" }
+        )
 
         XCTAssertEqual(failedJob.status, .failed)
         XCTAssertEqual(failedArticle.status, .failed)
         XCTAssertTrue(failedArticle.errorMessage?.contains("Missing assistant message content") == true)
         XCTAssertNil(persistedAnalysis)
+        XCTAssertEqual(failureLog.context["ai_error"], "invalid_response")
+        XCTAssertEqual(failureLog.context["status"], "200")
+        XCTAssertEqual(failureLog.context["finish_reason"], "length")
+        XCTAssertEqual(failureLog.context["response_preview"], "{\"choices\":[{\"finish_reason\":\"length\"}]}")
     }
 
     func testManualRetryRequeuesFailedJob() async throws {
@@ -487,7 +496,14 @@ private actor ValidationFailingProcessingJobExecutor: ProcessingJobExecuting {
 
 private actor ProviderFailingProcessingJobExecutor: ProcessingJobExecuting {
     func execute(job: ProcessingJob) async throws {
-        throw AIProviderError.invalidResponse("Missing assistant message content.")
+        throw AIProviderError.invalidResponse(
+            "Missing assistant message content.",
+            diagnostics: AIProviderResponseDiagnostics(
+                statusCode: 200,
+                finishReason: "length",
+                responsePreview: "{\"choices\":[{\"finish_reason\":\"length\"}]}"
+            )
+        )
     }
 }
 

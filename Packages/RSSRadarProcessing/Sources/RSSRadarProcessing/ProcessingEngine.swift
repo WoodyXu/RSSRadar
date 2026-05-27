@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import Foundation
 import RSSRadarAI
 import RSSRadarCore
@@ -63,6 +64,7 @@ public protocol ProcessingJobExecuting: Sendable {
     func execute(job: ProcessingJob) async throws
 }
 
+// swiftlint:disable:next type_body_length
 public actor ProcessingEngine {
     private let repositories: RSSRadarRepositories
     private let executor: any ProcessingJobExecuting
@@ -439,19 +441,62 @@ public actor ProcessingEngine {
         }
 
         let logMessage = exhaustedAttempts ? "Processing job failed" : "Processing job scheduled for retry"
+        var context = [
+            "job_id": job.id,
+            "job_type": job.jobType.rawValue,
+            "attempt_count": String(nextAttemptCount),
+            "max_attempts": String(job.maxAttempts)
+        ]
+        context.merge(aiFailureDiagnosticContext(from: error)) { current, _ in current }
+
         try? repositories.operationLogs.save(
             OperationLog(
                 level: exhaustedAttempts ? .error : .warning,
                 message: logMessage,
-                context: [
-                    "job_id": job.id,
-                    "job_type": job.jobType.rawValue,
-                    "attempt_count": String(nextAttemptCount),
-                    "max_attempts": String(job.maxAttempts)
-                ],
+                context: context,
                 createdAt: finishedAt
             )
         )
+    }
+
+    private static func aiFailureDiagnosticContext(from error: any Error) -> [String: String] {
+        guard let providerError = error as? AIProviderError else {
+            return [:]
+        }
+
+        var context = ["ai_error": providerErrorDiagnosticName(providerError)]
+        if case let .httpStatus(statusCode) = providerError {
+            context["status"] = String(statusCode)
+        }
+        if let diagnostics = providerError.diagnostics {
+            diagnostics.statusCode.map { context["status"] = String($0) }
+            diagnostics.finishReason.map { context["finish_reason"] = $0 }
+            diagnostics.responsePreview.map { context["response_preview"] = $0 }
+        }
+        return context
+    }
+
+    private static func providerErrorDiagnosticName(_ error: AIProviderError) -> String {
+        switch error {
+        case .missingAPIKey:
+            "missing_api_key"
+        case .missingModel:
+            "missing_model"
+        case .emptyMessages:
+            "empty_messages"
+        case .invalidBaseURL:
+            "invalid_base_url"
+        case .httpStatus:
+            "http_status"
+        case .timedOut:
+            "timed_out"
+        case .cancelled:
+            "cancelled"
+        case .network:
+            "network"
+        case .invalidResponse:
+            "invalid_response"
+        }
     }
 
     private static func markArticleFailedIfNeeded(
