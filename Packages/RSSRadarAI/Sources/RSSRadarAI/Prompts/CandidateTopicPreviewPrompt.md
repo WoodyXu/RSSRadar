@@ -61,7 +61,6 @@ Field limits:
   - Prefer observable signals, not vague questions.
 
 - related_article_ids:
-  - 1 to 6 items.
   - Include only article IDs that were actually used in the preview.
   - Each ID must exactly match one article_id from related_articles.
   - Do not include article IDs that are not reflected in the preview.

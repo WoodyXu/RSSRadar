@@ -92,7 +92,6 @@ Field limits:
   - Prefer observable questions about data, product adoption, regulation, pricing, financials, user behavior, competition, or execution.
 
 - related_article_ids:
-  - 1 to 12 items.
   - Include only article IDs that were actually used in the brief.
   - Each ID must exactly match one article_id from related_articles.
   - Do not include article IDs that are not reflected in the brief.
