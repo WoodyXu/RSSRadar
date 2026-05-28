@@ -103,7 +103,7 @@ final class TopicAssignmentUseCaseTests: XCTestCase {
         XCTAssertEqual(updatedArticle.status, .assigned)
     }
 
-    func testActiveTopicUpdateUsesEditedNameAndQueuesFullBriefGeneration() async throws {
+    func testActiveTopicUpdateUsesEditedNameWithoutQueuingBriefGeneration() async throws {
         let repositories = try makeRepositories()
         try seedAnalyzedArticle(id: "article-1", repositories: repositories)
         let activeTopic = Topic(
@@ -153,20 +153,15 @@ final class TopicAssignmentUseCaseTests: XCTestCase {
         let updatedRelationship = try XCTUnwrap(
             repositories.topicArticles.fetch(topicID: activeTopic.id, articleID: "article-1")
         )
-        let queuedBriefJob = try XCTUnwrap(result.topicBriefJobsQueued.first)
-        let persistedBriefJob = try XCTUnwrap(repositories.processingJobs.fetch(id: queuedBriefJob.id))
 
         XCTAssertEqual(requestTopic.name, activeTopic.name)
         XCTAssertEqual(requestTopic.description, activeTopic.description)
         XCTAssertEqual(updatedRelationship.confidence, 0.93)
         XCTAssertEqual(updatedRelationship.reason, "Matches the edited enterprise rollout topic.")
         XCTAssertEqual(updatedRelationship.contributionType, .newData)
-        XCTAssertEqual(result.activeTopicIDsForBriefGeneration, [activeTopic.id])
-        XCTAssertEqual(persistedBriefJob.status, .pending)
-        XCTAssertEqual(persistedBriefJob.jobType, .generateTopicBrief)
-        XCTAssertEqual(persistedBriefJob.entityID, activeTopic.id)
-        XCTAssertEqual(persistedBriefJob.payload["brief_type"], TopicBriefType.full.rawValue)
-        XCTAssertEqual(persistedBriefJob.payload["model_name"], "gpt-topic")
+        XCTAssertTrue(result.activeTopicIDsForBriefGeneration.isEmpty)
+        XCTAssertTrue(result.topicBriefJobsQueued.isEmpty)
+        XCTAssertTrue(try repositories.processingJobs.fetchAll().isEmpty)
     }
 
     func testEnqueueTopicAssignmentCreatesDefaultSizedArticleBatches() async throws {
@@ -272,8 +267,8 @@ final class TopicAssignmentUseCaseTests: XCTestCase {
         XCTAssertEqual(try repositories.topics.fetch(status: .active).count, 1)
         XCTAssertEqual(try repositories.topics.fetch(status: .candidate).count, 0)
         XCTAssertNotNil(try repositories.topicArticles.fetch(topicID: existingActive.id, articleID: "article-1"))
-        XCTAssertEqual(result.activeTopicIDsForBriefGeneration, [existingActive.id])
-        XCTAssertEqual(result.topicBriefJobsQueued.count, 1)
+        XCTAssertTrue(result.activeTopicIDsForBriefGeneration.isEmpty)
+        XCTAssertTrue(result.topicBriefJobsQueued.isEmpty)
     }
 }
 

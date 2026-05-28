@@ -55,6 +55,29 @@ final class AppEnvironment {
         candidateTopicManagementUseCase = CandidateTopicManagementUseCase(repositories: repositories)
     }
 
+    func makeTopicBriefGenerationUseCase() throws -> TopicBriefGenerationUseCase {
+        TopicBriefGenerationUseCase(
+            repositories: repositories,
+            generator: TopicBriefGenerationService(provider: try makeAIProvider())
+        )
+    }
+
+    private func makeAIProvider() throws -> URLSessionAIProvider {
+        let settings = try repositories.appSettings.fetch()
+        guard let accountIdentifier = settings.keychainAccountIdentifier else {
+            throw AIProviderError.missingAPIKey
+        }
+        guard let apiKey = try keychainStore.readAPIKey(accountIdentifier: accountIdentifier) else {
+            throw AIProviderError.missingAPIKey
+        }
+        return URLSessionAIProvider(
+            kind: settings.aiProvider,
+            baseURL: settings.baseURL,
+            apiKey: apiKey,
+            timeoutSeconds: TimeInterval(settings.aiRequestTimeoutSeconds)
+        )
+    }
+
     static func defaultDatabasePath() -> String {
         let applicationSupportURL = FileManager.default.urls(
             for: .applicationSupportDirectory,

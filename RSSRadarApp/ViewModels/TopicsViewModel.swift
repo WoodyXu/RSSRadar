@@ -74,6 +74,43 @@ final class TopicsViewModel: ObservableObject {
         }
     }
 
+    func extractSelectedTopicBrief() {
+        guard !isWorking else {
+            return
+        }
+        isWorking = true
+        errorMessage = nil
+
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
+            defer {
+                self.isWorking = false
+            }
+            do {
+                guard let topicID = self.selectedTopicID else {
+                    return
+                }
+                guard let topic = try self.environment.repositories.topics.fetch(id: topicID),
+                      topic.status == .active else {
+                    return
+                }
+                let settings = try self.environment.repositories.appSettings.fetch()
+                let useCase = try self.environment.makeTopicBriefGenerationUseCase()
+                _ = try await useCase.regenerate(
+                    topicID: topicID,
+                    briefType: .full,
+                    modelName: settings.modelName
+                )
+                try self.loadSelectedTopicDetail()
+                self.statusMessage = "\(topic.name) 已完成主题动态总结。"
+            } catch {
+                self.errorMessage = AppViewModelErrorMessage.message(from: error)
+            }
+        }
+    }
+
     private func refreshTopics() throws {
         topics = try environment.repositories.topics.fetchAll()
     }

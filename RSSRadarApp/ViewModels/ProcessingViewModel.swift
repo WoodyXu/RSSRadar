@@ -89,9 +89,9 @@ final class ProcessingViewModel: ObservableObject {
 extension ProcessingJobType {
     var requiresAIProvider: Bool {
         switch self {
-        case .analyzeArticle, .assignTopics, .generateTopicBrief:
+        case .analyzeArticle, .assignTopics:
             true
-        case .fetchFeed, .parseArticle, .retryFailedJob:
+        case .fetchFeed, .parseArticle, .generateTopicBrief, .retryFailedJob:
             false
         }
     }

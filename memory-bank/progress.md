@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-05-28 - Manual topic brief extraction in Topics
+
+Updated the Topics tab so TopicBrief generation is explicit and active-topic only.
+
+- Added an active-topic “一键萃取” action with the hint “点击总结主题动态。” in Topic Detail.
+- Wired the action through `TopicsViewModel` to `TopicBriefGenerationUseCase.regenerate(..., briefType: .full)`, using the saved AI settings and Keychain API Key only after the user clicks.
+- Removed automatic full TopicBrief queueing from `TopicAssignmentUseCase`.
+- Kept `generate_topic_brief` jobs unsupported in `ProcessingEngineExecutor`, so pending legacy jobs do not call TopicBrief generation automatically.
+- Hid 最近变化、时间线、关键证据 for candidate and ignored topics in Topic Detail.
+- Removed the 情报类型 metadata from Topic Detail.
+- Made related articles in Topic Detail open their article URL in the default browser.
+- Updated processing and end-to-end tests to assert active-topic assignment no longer queues TopicBrief generation and manual regeneration still produces the full brief.
+
+Verification:
+
+- `swift build` passed.
+- `swift test --filter TopicAssignmentUseCaseTests --filter TopicBriefGenerationUseCaseTests --filter MVPEndToEndAcceptanceTests` passed with 11 tests and 0 failures.
+
 ## 2026-05-28 - Entity and dimension anchored topic generation
 
 Reworked topic generation toward reusable entity/dimension anchors instead of narrow one-article issue titles.

@@ -108,7 +108,7 @@ final class TopicBriefGenerationUseCaseTests: XCTestCase {
         })
     }
 
-    func testProcessingEngineExecutorRunsGenerateTopicBriefJobWhenGeneratorIsInjected() async throws {
+    func testProcessingEngineExecutorDoesNotGenerateTopicBriefJobs() async throws {
         let repositories = try makeRepositories()
         try seedTopicGraph(topicStatus: .active, repositories: repositories)
         let generator = RecordingTopicBriefGenerator(
@@ -134,13 +134,14 @@ final class TopicBriefGenerationUseCaseTests: XCTestCase {
 
         await engine.runPendingJobs(now: fixedDate.addingTimeInterval(1))
 
-        let completedJob = try XCTUnwrap(repositories.processingJobs.fetch(id: job.id))
+        let retriedJob = try XCTUnwrap(repositories.processingJobs.fetch(id: job.id))
         let persistedBrief = try repositories.topicBriefs.fetch(topicID: "topic-1", briefType: .full)
 
-        XCTAssertEqual(completedJob.status, .completed)
-        XCTAssertNotNil(persistedBrief)
+        XCTAssertEqual(retriedJob.status, .pending)
+        XCTAssertEqual(retriedJob.attemptCount, 1)
+        XCTAssertNil(persistedBrief)
         let requests = await generator.allRequests()
-        XCTAssertEqual(requests.count, 1)
+        XCTAssertTrue(requests.isEmpty)
     }
 }
 

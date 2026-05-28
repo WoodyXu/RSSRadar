@@ -154,15 +154,16 @@ final class MVPEndToEndAcceptanceTests: XCTestCase {
             "Tracks how Claude Code changes Swift team refactoring and onboarding."
         )
 
-        let briefEngine = ProcessingEngine(
+        _ = try await TopicBriefGenerationUseCase(
             repositories: repositories,
-            executor: ProcessingEngineExecutor(
-                repositories: repositories,
-                topicBriefGenerator: AcceptanceTopicBriefGenerator()
-            ),
-            configuration: ProcessingEngineConfiguration(maxConcurrentGenerateTopicBriefJobs: 2)
+            generator: AcceptanceTopicBriefGenerator()
         )
-        await briefEngine.runPendingJobs(now: acceptanceNow.addingTimeInterval(12))
+        .regenerate(
+            topicID: topic.id,
+            briefType: .full,
+            modelName: "gpt-acceptance",
+            generatedAt: acceptanceNow.addingTimeInterval(12)
+        )
     }
 
     private func exportAndValidateMarkdown(repositories: RSSRadarRepositories, topicID: String) throws {

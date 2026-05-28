@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import RSSRadarCore
 import RSSRadarProcessing
@@ -45,7 +46,9 @@ struct TopicsView: View {
             TopicDetailView(
                 snapshot: viewModel.selectedTopicDetail,
                 onTrackCandidate: viewModel.trackSelectedCandidate,
-                onIgnoreCandidate: viewModel.ignoreSelectedCandidate
+                onIgnoreCandidate: viewModel.ignoreSelectedCandidate,
+                onExtractBrief: viewModel.extractSelectedTopicBrief,
+                isWorking: viewModel.isWorking
             )
                 .frame(minWidth: 500)
         }
@@ -182,6 +185,8 @@ struct TopicDetailView: View {
     let snapshot: TopicDetailSnapshot?
     var onTrackCandidate: (() -> Void)?
     var onIgnoreCandidate: (() -> Void)?
+    var onExtractBrief: (() -> Void)?
+    var isWorking = false
 
     var body: some View {
         ScrollView {
@@ -198,50 +203,52 @@ struct TopicDetailView: View {
                         }
                     }
 
-                    DetailSection(title: "最近变化") {
-                        if snapshot.latestChanges.isEmpty {
-                            EmptyDetailText("暂无缓存的最近变化。")
-                        } else {
-                            BulletList(items: snapshot.latestChanges.map(\.text))
+                    if shouldShowBriefSections(snapshot) {
+                        DetailSection(title: "最近变化") {
+                            if snapshot.latestChanges.isEmpty {
+                                EmptyDetailText("暂无缓存的最近变化。")
+                            } else {
+                                BulletList(items: snapshot.latestChanges.map(\.text))
+                            }
                         }
-                    }
 
-                    DetailSection(title: "时间线") {
-                        if snapshot.timeline.isEmpty {
-                            EmptyDetailText("暂无缓存的时间线。")
-                        } else {
-                            VStack(alignment: .leading, spacing: 12) {
-                                ForEach(Array(snapshot.timeline.enumerated()), id: \.offset) { _, item in
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(item.title)
-                                            .font(.callout.weight(.semibold))
-                                        Text(item.description)
-                                            .font(.callout)
-                                            .foregroundStyle(.secondary)
-                                        if let date = item.date {
-                                            Text(date.appShortDate)
-                                                .font(.caption)
+                        DetailSection(title: "时间线") {
+                            if snapshot.timeline.isEmpty {
+                                EmptyDetailText("暂无缓存的时间线。")
+                            } else {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    ForEach(Array(snapshot.timeline.enumerated()), id: \.offset) { _, item in
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(item.title)
+                                                .font(.callout.weight(.semibold))
+                                            Text(item.description)
+                                                .font(.callout)
                                                 .foregroundStyle(.secondary)
+                                            if let date = item.date {
+                                                Text(date.appShortDate)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    DetailSection(title: "关键证据") {
-                        if snapshot.evidence.isEmpty {
-                            EmptyDetailText("暂无缓存的关键证据。")
-                        } else {
-                            VStack(alignment: .leading, spacing: 12) {
-                                ForEach(Array(snapshot.evidence.enumerated()), id: \.offset) { _, item in
-                                    VStack(alignment: .leading, spacing: 5) {
-                                        Text(item.evidence.content)
-                                            .font(.callout)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                        Text(item.sourceName)
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(.secondary)
+                        DetailSection(title: "关键证据") {
+                            if snapshot.evidence.isEmpty {
+                                EmptyDetailText("暂无缓存的关键证据。")
+                            } else {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    ForEach(Array(snapshot.evidence.enumerated()), id: \.offset) { _, item in
+                                        VStack(alignment: .leading, spacing: 5) {
+                                            Text(item.evidence.content)
+                                                .font(.callout)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                            Text(item.sourceName)
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(.secondary)
+                                        }
                                     }
                                 }
                             }
@@ -254,24 +261,29 @@ struct TopicDetailView: View {
                         } else {
                             VStack(alignment: .leading, spacing: 12) {
                                 ForEach(snapshot.relatedArticles, id: \.article.id) { item in
-                                    VStack(alignment: .leading, spacing: 5) {
-                                        Text(item.article.title)
-                                            .font(.callout.weight(.semibold))
-                                            .foregroundStyle(.primary)
-                                        if let summary = item.analysisSummary {
-                                            Text(summary)
-                                                .font(.callout)
+                                    Button {
+                                        NSWorkspace.shared.open(item.article.url)
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 5) {
+                                            Text(item.article.title)
+                                                .font(.callout.weight(.semibold))
+                                                .foregroundStyle(AppTheme.green)
+                                            if let summary = item.analysisSummary {
+                                                Text(summary)
+                                                    .font(.callout)
+                                                    .foregroundStyle(.secondary)
+                                                    .lineLimit(3)
+                                            }
+                                            Text(
+                                                item.sourceName
+                                                    ?? item.article.url.host()
+                                                    ?? item.article.url.absoluteString
+                                            )
+                                                .font(.caption)
                                                 .foregroundStyle(.secondary)
-                                                .lineLimit(3)
                                         }
-                                        Text(
-                                            item.sourceName
-                                                ?? item.article.url.host()
-                                                ?? item.article.url.absoluteString
-                                        )
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
                                     }
+                                    .buttonStyle(.plain)
                                 }
                             }
                         }
@@ -314,9 +326,22 @@ struct TopicDetailView: View {
             }
 
             HStack(spacing: 14) {
-                TopicMeta(title: "情报类型", value: snapshot.briefType.appDisplayName)
                 TopicMeta(title: "文章", value: "\(snapshot.relatedArticles.count)")
                 TopicMeta(title: "更新", value: snapshot.topic.updatedAt.appShortDate)
+            }
+
+            if snapshot.topic.status == .active, let onExtractBrief {
+                HStack(spacing: 10) {
+                    Button(action: onExtractBrief) {
+                        Label("一键萃取", systemImage: "sparkles")
+                    }
+                    .buttonStyle(AppPrimaryButtonStyle())
+                    .disabled(isWorking)
+
+                    Text("点击总结主题动态。")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if snapshot.topic.status == .candidate {
@@ -339,16 +364,9 @@ struct TopicDetailView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
-}
 
-private extension TopicBriefType {
-    var appDisplayName: String {
-        switch self {
-        case .full:
-            "完整"
-        case .preview:
-            "预览"
-        }
+    private func shouldShowBriefSections(_ snapshot: TopicDetailSnapshot) -> Bool {
+        snapshot.topic.status == .active
     }
 }
 

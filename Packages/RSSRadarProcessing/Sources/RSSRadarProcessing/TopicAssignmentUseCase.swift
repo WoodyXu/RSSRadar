@@ -93,13 +93,6 @@ public final class TopicAssignmentUseCase: @unchecked Sendable {
                 )
                 try transaction.topicArticles.save(relationship)
                 savedRelationships.append(relationship)
-                try queueFullBriefGenerationIfNeeded(
-                    topic: topic,
-                    modelName: assignmentResult.modelName,
-                    scheduledAt: assignedAt,
-                    transaction: transaction,
-                    context: &context
-                )
 
                 if var article = try transaction.articles.fetch(id: assignment.articleID) {
                     article.status = .assigned
@@ -117,45 +110,6 @@ public final class TopicAssignmentUseCase: @unchecked Sendable {
             topicBriefJobsQueued: context.topicBriefJobsQueued,
             modelName: assignmentResult.modelName
         )
-    }
-
-    private func queueFullBriefGenerationIfNeeded(
-        topic: Topic,
-        modelName: String,
-        scheduledAt: Date,
-        transaction: RSSRadarRepositoryTransaction,
-        context: inout TopicAssignmentPersistenceContext
-    ) throws {
-        guard topic.status == .active else {
-            return
-        }
-        guard context.activeTopicIDsQueuedForBriefs.insert(topic.id).inserted else {
-            return
-        }
-
-        let job = ProcessingJob(
-            jobType: .generateTopicBrief,
-            entityType: .topic,
-            entityID: topic.id,
-            payload: [
-                "topic_id": topic.id,
-                "brief_type": TopicBriefType.full.rawValue,
-                "model_name": modelName
-            ],
-            scheduledAt: scheduledAt,
-            createdAt: scheduledAt,
-            updatedAt: scheduledAt
-        )
-        try transaction.processingJobs.save(job)
-        try transaction.operationLogs.save(
-            OperationLog(
-                level: .info,
-                message: "Queued full TopicBrief generation",
-                context: ["job_id": job.id, "topic_id": topic.id],
-                createdAt: scheduledAt
-            )
-        )
-        context.topicBriefJobsQueued.append(job)
     }
 
     private func resolveTopic(

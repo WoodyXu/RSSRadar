@@ -28,7 +28,6 @@ public struct ProcessingEngineExecutor: ProcessingJobExecuting, @unchecked Senda
     private let feedScanUseCase: FeedScanUseCase
     private let articleAnalyzer: (any ArticleAnalyzing)?
     private let topicAssigner: (any TopicAssigning)?
-    private let topicBriefGenerationUseCase: TopicBriefGenerationUseCase?
     private let aiProviderFactory: AIProviderFactory?
     private let aiSettingsProvider: AISettingsProvider?
 
@@ -37,7 +36,6 @@ public struct ProcessingEngineExecutor: ProcessingJobExecuting, @unchecked Senda
         loader: FeedDataLoader = URLSession.shared,
         articleAnalyzer: (any ArticleAnalyzing)? = nil,
         topicAssigner: (any TopicAssigning)? = nil,
-        topicBriefGenerator: (any TopicBriefGenerating)? = nil,
         aiProviderFactory: AIProviderFactory? = nil,
         aiSettingsProvider: AISettingsProvider? = nil
     ) {
@@ -45,9 +43,6 @@ public struct ProcessingEngineExecutor: ProcessingJobExecuting, @unchecked Senda
         feedScanUseCase = FeedScanUseCase(repositories: repositories, loader: loader)
         self.articleAnalyzer = articleAnalyzer
         self.topicAssigner = topicAssigner
-        topicBriefGenerationUseCase = topicBriefGenerator.map {
-            TopicBriefGenerationUseCase(repositories: repositories, generator: $0)
-        }
         self.aiProviderFactory = aiProviderFactory
         self.aiSettingsProvider = aiSettingsProvider
     }
@@ -93,25 +88,30 @@ public struct ProcessingEngineExecutor: ProcessingJobExecuting, @unchecked Senda
     }
 
     private func executeGenerateTopicBrief(_ job: ProcessingJob) async throws {
-        guard let topicBriefGenerationUseCase else {
-            throw ProcessingEngineError.unsupportedJobType(job.jobType)
+        guard let topicID = job.entityID else {
+            throw ProcessingEngineError.missingEntityID(job.id)
         }
         guard let briefType = TopicBriefType(rawValue: job.payload["brief_type"] ?? "") else {
             throw ProcessingEngineError.invalidPayload(job.id, "brief_type")
         }
-        _ = try await topicBriefGenerationUseCase.generateIfNeeded(
-            topicID: topicID(from: job),
+        let modelName = modelName(from: job)
+        guard !modelName.isEmpty else {
+            throw ProcessingEngineError.invalidPayload(job.id, "model_name")
+        }
+        let useCase = try makeTopicBriefGenerationUseCase()
+        _ = try await useCase.generateIfNeeded(
+            topicID: topicID,
             briefType: briefType,
-            modelName: modelName(from: job)
+            modelName: modelName
         )
     }
 
-    private func topicID(from job: ProcessingJob) throws -> String {
-        let topicID = job.payload["topic_id"] ?? job.entityID ?? ""
-        guard !topicID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw ProcessingEngineError.missingEntityID(job.id)
+    private func makeTopicBriefGenerationUseCase() throws -> TopicBriefGenerationUseCase {
+        guard let aiProviderFactory else {
+            throw ProcessingEngineError.unsupportedJobType(.generateTopicBrief)
         }
-        return topicID
+        let generator = TopicBriefGenerationService(provider: try aiProviderFactory())
+        return TopicBriefGenerationUseCase(repositories: repositories, generator: generator)
     }
 
     private func articleIDs(from job: ProcessingJob) -> [String] {
