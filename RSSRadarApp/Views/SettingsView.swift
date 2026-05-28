@@ -10,8 +10,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 18) {
                 header
                 aiSettings
-                currentAISettings
-                scanSettings
+                scanAndCostSettings
                 dataSettings
             }
             .padding(28)
@@ -26,32 +25,30 @@ struct SettingsView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("通用配置")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(AppTheme.green)
-                PageStatusBanner(message: viewModel.statusMessage, errorMessage: viewModel.errorMessage)
-            }
-
-            Spacer()
-
-            Button {
-                viewModel.saveSettings()
-            } label: {
-                Label("保存", systemImage: "checkmark")
-            }
-            .buttonStyle(AppPrimaryButtonStyle())
-            .disabled(viewModel.isWorking)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("通用配置")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(AppTheme.green)
+            PageStatusBanner(message: viewModel.statusMessage, errorMessage: viewModel.errorMessage)
         }
     }
 
     private var aiSettings: some View {
         AppCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("AI 新配置")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.green)
+                HStack(alignment: .firstTextBaseline) {
+                    Text("AI 新配置")
+                        .font(.headline)
+                        .foregroundStyle(AppTheme.green)
+                    Spacer()
+                    Button {
+                        viewModel.saveAISettings()
+                    } label: {
+                        Label("保存", systemImage: "checkmark")
+                    }
+                    .buttonStyle(AppPrimaryButtonStyle())
+                    .disabled(viewModel.isWorking)
+                }
 
                 if !viewModel.hasSavedAPIKey {
                     HStack(alignment: .top, spacing: 10) {
@@ -91,63 +88,68 @@ struct SettingsView: View {
                 )
                 .textFieldStyle(.roundedBorder)
 
-                HStack {
-                    Text(viewModel.hasSavedAPIKey ? "API Key 已保存在 Keychain。" : "尚未保存 API Key。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button("删除 API Key") {
-                        viewModel.deleteSavedAPIKey()
-                    }
-                    .buttonStyle(AppSecondaryButtonStyle())
-                    .disabled(!viewModel.hasSavedAPIKey || viewModel.isWorking)
-                }
+                Divider()
+
+                currentAISettings
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
     private var currentAISettings: some View {
-        AppCard {
-            VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
                 Text("当前配置")
                     .font(.headline)
                     .foregroundStyle(AppTheme.green)
-
-                SettingsReadOnlyRow(title: "服务商", value: viewModel.savedProviderName)
-                SettingsReadOnlyRow(title: "URL", value: viewModel.savedBaseURLString)
-                SettingsReadOnlyRow(title: "Model", value: viewModel.savedModelName)
-                SettingsReadOnlyRow(title: "API Key", value: viewModel.hasSavedAPIKey ? "已保存到 Keychain" : "未配置")
+                Spacer()
+                Button {
+                    viewModel.deleteSavedAPIKey()
+                } label: {
+                    Label("删除 API Key", systemImage: "key.slash")
+                }
+                .buttonStyle(AppSecondaryButtonStyle())
+                .disabled(!viewModel.hasSavedAPIKey || viewModel.isWorking)
             }
+
+            SettingsReadOnlyRow(title: "服务商", value: viewModel.savedProviderName)
+            SettingsReadOnlyRow(title: "URL", value: viewModel.savedBaseURLString)
+            SettingsReadOnlyRow(title: "Model", value: viewModel.savedModelName)
+            SettingsReadOnlyRow(title: "API Key", value: viewModel.hasSavedAPIKey ? "已保存到 Keychain" : "未配置")
         }
     }
 
-    private var scanSettings: some View {
+    private var scanAndCostSettings: some View {
         AppCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("扫描与成本")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.green)
-
-                Picker("扫描模式", selection: $viewModel.scanMode) {
-                    ForEach(ScanMode.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
+                HStack(alignment: .firstTextBaseline) {
+                    Text("扫描与成本")
+                        .font(.headline)
+                        .foregroundStyle(AppTheme.green)
+                    Spacer()
+                    Button {
+                        viewModel.saveScanSettings()
+                    } label: {
+                        Label("保存", systemImage: "checkmark")
                     }
+                    .buttonStyle(AppPrimaryButtonStyle())
+                    .disabled(viewModel.isWorking)
                 }
-                .pickerStyle(.segmented)
 
-                SettingsStepper(title: "扫描间隔小时数", value: $viewModel.scanIntervalHours, range: 1...168)
-                SettingsStepper(title: "单次扫描最大文章数", value: $viewModel.maxArticlesPerScan, range: 1...1_000)
-                SettingsStepper(
-                    title: "新源最大文章数",
-                    value: $viewModel.maxArticlesForNewFeed,
-                    range: 1...100
-                )
-                SettingsStepper(
-                    title: "主题批处理最大文章数",
-                    value: $viewModel.maxArticlesPerTopicBatch,
-                    range: 1...100
-                )
-                SettingsStepper(title: "AI 超时秒数", value: $viewModel.aiRequestTimeoutSeconds, range: 5...600)
+                VStack(alignment: .leading, spacing: 14) {
+                    Picker("扫描模式", selection: $viewModel.scanMode) {
+                        ForEach(ScanMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    SettingsNumericField(title: "扫描间隔小时数", value: $viewModel.scanIntervalHours, range: 1...168)
+                    SettingsNumericField(title: "单次扫描最大文章数", value: $viewModel.maxArticlesPerScan, range: 1...1_000)
+                    SettingsNumericField(title: "新源最大文章数", value: $viewModel.maxArticlesForNewFeed, range: 1...100)
+                    SettingsNumericField(title: "主题批处理最大文章数", value: $viewModel.maxArticlesPerTopicBatch, range: 1...100)
+                    SettingsNumericField(title: "AI 超时秒数", value: $viewModel.aiRequestTimeoutSeconds, range: 5...600)
+                }
             }
         }
     }
@@ -155,9 +157,19 @@ struct SettingsView: View {
     private var dataSettings: some View {
         AppCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("数据")
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.green)
+                HStack(alignment: .firstTextBaseline) {
+                    Text("数据")
+                        .font(.headline)
+                        .foregroundStyle(AppTheme.green)
+                    Spacer()
+                    Button {
+                        viewModel.saveDataSettings()
+                    } label: {
+                        Label("保存", systemImage: "checkmark")
+                    }
+                    .buttonStyle(AppPrimaryButtonStyle())
+                    .disabled(viewModel.isWorking)
+                }
 
                 TextField("数据库路径", text: $viewModel.databasePath)
                     .textFieldStyle(.roundedBorder)
@@ -215,19 +227,21 @@ struct SettingsView: View {
     }
 }
 
-private struct SettingsStepper: View {
+private struct SettingsNumericField: View {
     let title: String
     @Binding var value: Int
     let range: ClosedRange<Int>
 
     var body: some View {
-        HStack {
+        VStack(alignment: .leading, spacing: 6) {
             Text(title)
-            Spacer()
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.primary)
+
             Stepper(value: $value, in: range) {
-                Text(String(value))
-                    .font(.callout.weight(.semibold))
-                    .frame(minWidth: 44, alignment: .trailing)
+                TextField("", value: $value, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 100)
             }
         }
     }

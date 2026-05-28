@@ -4,6 +4,8 @@ import RSSRadarCore
 struct ProcessingView: View {
     @StateObject var viewModel: ProcessingViewModel
     let onOpenSettings: () -> Void
+    @State private var isTaskListExpanded = false
+    @State private var isLogListExpanded = false
 
     var body: some View {
         ScrollView {
@@ -69,7 +71,7 @@ struct ProcessingView: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 10) {
-                Text("处理日志")
+                Text("任务状态")
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(AppTheme.green)
                 PageStatusBanner(message: viewModel.statusMessage, errorMessage: viewModel.errorMessage)
@@ -114,26 +116,24 @@ struct ProcessingView: View {
     }
 
     private var jobList: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("任务")
-                .font(.headline)
-                .foregroundStyle(AppTheme.green)
-
+        DisclosureGroup(isExpanded: $isTaskListExpanded) {
             if viewModel.jobs.isEmpty {
-                EmptyStateCard(
-                    systemImage: "gearshape.2",
-                    title: "暂无处理任务",
-                    message: "请在内容源配置中添加 RSS 源并运行扫描。任务开始后会在这里显示，并提供重试入口。"
-                ) {
-                    Button {
-                        Task {
-                            await viewModel.runPendingJobs()
+                AppCard {
+                    EmptyStateCard(
+                        systemImage: "gearshape.2",
+                        title: "暂无处理任务",
+                        message: "请在内容源管理中添加 RSS 源并运行扫描。任务开始后会在这里显示，并提供重试入口。"
+                    ) {
+                        Button {
+                            Task {
+                                await viewModel.runPendingJobs()
+                            }
+                        } label: {
+                            Label("运行待处理任务", systemImage: "play.fill")
                         }
-                    } label: {
-                        Label("运行待处理任务", systemImage: "play.fill")
+                        .buttonStyle(AppSecondaryButtonStyle())
+                        .disabled(viewModel.isWorking)
                     }
-                    .buttonStyle(AppSecondaryButtonStyle())
-                    .disabled(viewModel.isWorking)
                 }
             } else {
                 LazyVStack(spacing: 10) {
@@ -142,22 +142,24 @@ struct ProcessingView: View {
                     }
                 }
             }
+        } label: {
+            Text("任务")
+                .font(.headline)
+                .foregroundStyle(AppTheme.green)
         }
     }
 
     private var logList: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("最近日志")
-                .font(.headline)
-                .foregroundStyle(AppTheme.green)
-
+        DisclosureGroup(isExpanded: $isLogListExpanded) {
             if viewModel.logs.isEmpty {
-                EmptyStateCard(
-                    systemImage: "list.bullet.rectangle",
-                    title: "暂无日志",
-                    message: "扫描或 AI 任务运行后，这里会显示开始、完成、重试和失败记录。"
-                ) {
-                    EmptyView()
+                AppCard {
+                    EmptyStateCard(
+                        systemImage: "list.bullet.rectangle",
+                        title: "暂无日志",
+                        message: "扫描或 AI 任务运行后，这里会显示开始、完成、重试和失败记录。"
+                    ) {
+                        EmptyView()
+                    }
                 }
             } else {
                 LazyVStack(spacing: 8) {
@@ -181,6 +183,10 @@ struct ProcessingView: View {
                     }
                 }
             }
+        } label: {
+            Text("最近日志")
+                .font(.headline)
+                .foregroundStyle(AppTheme.green)
         }
     }
 }

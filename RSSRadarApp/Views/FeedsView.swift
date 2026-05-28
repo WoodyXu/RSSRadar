@@ -39,25 +39,27 @@ struct FeedsView: View {
                             Label("导入 OPML", systemImage: "square.and.arrow.down")
                         }
                         .buttonStyle(AppSecondaryButtonStyle())
-
-                        Button {
-                                Task {
-                                    await viewModel.refreshAll()
-                            }
-                        } label: {
-                            Label("全部手动刷新", systemImage: "arrow.clockwise")
-                        }
-                            .buttonStyle(AppPrimaryButtonStyle())
-                            .disabled(viewModel.feeds.isEmpty || viewModel.isWorking)
                         }
                     }
                 }
 
                 AppCard {
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("当前源管理")
-                            .font(.headline)
-                            .foregroundStyle(AppTheme.green)
+                        HStack(alignment: .firstTextBaseline) {
+                            Text("当前源管理")
+                                .font(.headline)
+                                .foregroundStyle(AppTheme.green)
+                            Spacer()
+                            Button {
+                                Task {
+                                    await viewModel.refreshAll()
+                                }
+                            } label: {
+                                Label("全部手动刷新", systemImage: "arrow.clockwise")
+                            }
+                            .buttonStyle(AppPrimaryButtonStyle())
+                            .disabled(viewModel.feeds.isEmpty || viewModel.isWorking)
+                        }
 
                         if viewModel.feeds.isEmpty {
                             VStack(alignment: .leading, spacing: 12) {
@@ -100,7 +102,7 @@ struct FeedsView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("内容源配置")
+            Text("内容源管理")
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(AppTheme.green)
             PageStatusBanner(message: viewModel.statusMessage, errorMessage: viewModel.errorMessage)

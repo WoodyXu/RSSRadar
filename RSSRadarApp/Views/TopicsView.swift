@@ -90,7 +90,6 @@ struct TopicsView: View {
             get: { viewModel.selectedStatus },
             set: { viewModel.setStatusFilter($0) }
         )) {
-            Text("全部 (\(viewModel.visibleTopicCount))").tag(TopicStatus?.none)
             ForEach(TopicStatus.visibleInTopicsTab, id: \.self) { status in
                 Text("\(status.appDisplayName) (\(viewModel.count(for: status)))")
                     .tag(TopicStatus?.some(status))

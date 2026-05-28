@@ -40,12 +40,14 @@ final class SettingsViewModel: ObservableObject {
     func load() {
         runSync {
             let settings = try environment.repositories.appSettings.fetch()
-            apply(settings: settings)
+            applyAISettings(settings: settings)
+            applyScanSettings(settings: settings)
+            applyDataSettings(settings: settings)
             statusMessage = "配置已加载。"
         }
     }
 
-    func saveSettings() {
+    func saveAISettings() {
         runSync {
             guard let baseURL = URL(string: baseURLString), baseURL.scheme?.isEmpty == false else {
                 throw SettingsViewModelError.invalidBaseURL
@@ -62,7 +64,17 @@ final class SettingsViewModel: ObservableObject {
             settings.aiProvider = selectedProvider
             settings.baseURL = baseURL
             settings.modelName = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
-            settings.databasePath = databasePath.trimmingCharacters(in: .whitespacesAndNewlines)
+            try environment.repositories.appSettings.save(settings)
+
+            apiKey = ""
+            applyAISettings(settings: settings)
+            statusMessage = "AI 配置已保存。"
+        }
+    }
+
+    func saveScanSettings() {
+        runSync {
+            var settings = try environment.repositories.appSettings.fetch()
             settings.scanMode = scanMode
             settings.scanIntervalHours = max(1, scanIntervalHours)
             settings.maxArticlesPerScan = max(1, maxArticlesPerScan)
@@ -71,9 +83,19 @@ final class SettingsViewModel: ObservableObject {
             settings.aiRequestTimeoutSeconds = max(5, aiRequestTimeoutSeconds)
             try environment.repositories.appSettings.save(settings)
 
-            apiKey = ""
-            apply(settings: settings)
-            statusMessage = "配置已保存。"
+            applyScanSettings(settings: settings)
+            statusMessage = "扫描与成本配置已保存。"
+        }
+    }
+
+    func saveDataSettings() {
+        runSync {
+            var settings = try environment.repositories.appSettings.fetch()
+            settings.databasePath = databasePath.trimmingCharacters(in: .whitespacesAndNewlines)
+            try environment.repositories.appSettings.save(settings)
+
+            applyDataSettings(settings: settings)
+            statusMessage = "数据配置已保存。"
         }
     }
 
@@ -85,7 +107,7 @@ final class SettingsViewModel: ObservableObject {
             }
             settings.keychainAccountIdentifier = nil
             try environment.repositories.appSettings.save(settings)
-            hasSavedAPIKey = false
+            applyAISettings(settings: settings)
             statusMessage = "已删除保存的 API Key。"
         }
     }
@@ -133,21 +155,27 @@ final class SettingsViewModel: ObservableObject {
         clearConfirmationText.trimmingCharacters(in: .whitespacesAndNewlines) == "CLEAR"
     }
 
-    private func apply(settings: AppSettings) {
+    private func applyAISettings(settings: AppSettings) {
         selectedProvider = settings.aiProvider
         baseURLString = settings.baseURL.absoluteString
         modelName = settings.modelName
+        hasSavedAPIKey = settings.keychainAccountIdentifier != nil
+        savedProviderName = settings.aiProvider.displayName
+        savedBaseURLString = settings.baseURL.absoluteString
+        savedModelName = settings.modelName.isEmpty ? "未配置" : settings.modelName
+    }
+
+    private func applyScanSettings(settings: AppSettings) {
         scanMode = settings.scanMode
         scanIntervalHours = settings.scanIntervalHours
         maxArticlesPerScan = settings.maxArticlesPerScan
         maxArticlesForNewFeed = settings.maxArticlesForNewFeed
         maxArticlesPerTopicBatch = settings.maxArticlesPerTopicBatch
         aiRequestTimeoutSeconds = settings.aiRequestTimeoutSeconds
+    }
+
+    private func applyDataSettings(settings: AppSettings) {
         databasePath = settings.databasePath ?? AppEnvironment.defaultDatabasePath()
-        hasSavedAPIKey = settings.keychainAccountIdentifier != nil
-        savedProviderName = settings.aiProvider.displayName
-        savedBaseURLString = settings.baseURL.absoluteString
-        savedModelName = settings.modelName.isEmpty ? "未配置" : settings.modelName
     }
 
     private func runSync(_ operation: () throws -> Void) {

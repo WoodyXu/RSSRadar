@@ -15,9 +15,9 @@ enum RSSRadarSection: String, CaseIterable, Identifiable, Hashable {
         case .topics:
             "主题聚合"
         case .feeds:
-            "内容源配置"
+            "内容源管理"
         case .processing:
-            "处理日志"
+            "任务状态"
         case .settings:
             "通用配置"
         }
