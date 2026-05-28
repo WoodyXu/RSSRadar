@@ -14,13 +14,13 @@ extension FeedStatus {
     var appDisplayName: String {
         switch self {
         case .active:
-            "active"
+            "正常"
         case .error:
-            "error"
+            "异常"
         case .paused:
-            "paused"
+            "已暂停"
         case .noArticles:
-            "no articles"
+            "暂无文章"
         }
     }
 }
@@ -29,17 +29,17 @@ extension ProcessingJobType {
     var displayName: String {
         switch self {
         case .fetchFeed:
-            "Feed scan"
+            "内容源扫描"
         case .parseArticle:
-            "Article parsing"
+            "文章解析"
         case .analyzeArticle:
-            "Article analysis"
+            "文章分析"
         case .assignTopics:
-            "Topic assignment"
+            "主题归类"
         case .generateTopicBrief:
-            "Topic brief"
+            "主题情报页"
         case .retryFailedJob:
-            "Failed-job retry"
+            "失败任务重试"
         }
     }
 }
@@ -48,13 +48,13 @@ extension ProcessingJobStatus {
     var displayName: String {
         switch self {
         case .pending:
-            "pending"
+            "等待中"
         case .running:
-            "running"
+            "运行中"
         case .completed:
-            "completed"
+            "已完成"
         case .failed:
-            "failed"
+            "失败"
         }
     }
 }
@@ -63,13 +63,13 @@ extension TopicStatus {
     var appDisplayName: String {
         switch self {
         case .candidate:
-            "candidate"
+            "待确认主题"
         case .active:
-            "active"
+            "跟踪主题"
         case .ignored:
-            "ignored"
+            "忽略主题"
         case .archived:
-            "archived"
+            "归档主题"
         }
     }
 }
@@ -82,11 +82,11 @@ extension ScanMode: Identifiable {
     var displayName: String {
         switch self {
         case .manual:
-            "Manual"
+            "手动"
         case .onLaunch:
-            "On launch"
+            "启动时"
         case .interval:
-            "Every N hours"
+            "每 N 小时"
         }
     }
 }

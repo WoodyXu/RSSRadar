@@ -20,9 +20,9 @@ final class OnboardingViewModel: ObservableObject {
     @Published var apiKey = ""
     @Published var maxArticlesPerScan = 100
     @Published var isWorking = false
-    @Published var feedSummary = "No feeds added yet."
-    @Published var settingsSummary = "AI provider is not configured."
-    @Published var scanSummary = "First scan has not started."
+    @Published var feedSummary = "还没有添加内容源。"
+    @Published var settingsSummary = "尚未配置 AI 服务商。"
+    @Published var scanSummary = "首次扫描尚未开始。"
     @Published var candidatePreviews: [CandidateTopicPreview] = []
     @Published var errorMessage: String?
 
@@ -40,8 +40,8 @@ final class OnboardingViewModel: ObservableObject {
             modelName = settings.modelName
             maxArticlesPerScan = settings.maxArticlesPerScan
             settingsSummary = settings.keychainAccountIdentifier == nil
-                ? "AI provider is not configured."
-                : "\(settings.aiProvider.displayName) saved with model \(settings.modelName)."
+                ? "尚未配置 AI 服务商。"
+                : "已保存 \(settings.aiProvider.displayName)，Model：\(settings.modelName)。"
             try refreshFeedSummary()
             try refreshCandidates()
         } catch {
@@ -53,7 +53,7 @@ final class OnboardingViewModel: ObservableObject {
         await run { [self] in
             let feed = try await self.environment.manualFeedAddUseCase.addFeed(urlString: self.feedURLString)
             self.feedURLString = ""
-            self.feedSummary = "Added \(feed.title) with status \(feed.status.displayName)."
+            self.feedSummary = "已添加 \(feed.title)，状态：\(feed.status.displayName)。"
         }
     }
 
@@ -69,8 +69,8 @@ final class OnboardingViewModel: ObservableObject {
             let data = try Data(contentsOf: url)
             let result = try environment.opmlImportUseCase.importOPML(data: data)
             feedSummary = """
-                Imported \(result.importedFeeds.count) feeds, skipped \(result.skippedDuplicates.count), \
-                errors \(result.errors.count).
+                已导入 \(result.importedFeeds.count) 个内容源，跳过 \(result.skippedDuplicates.count) 个重复源，\
+                错误 \(result.errors.count) 个。
                 """
         }
     }
@@ -102,7 +102,7 @@ final class OnboardingViewModel: ObservableObject {
             try environment.repositories.appSettings.save(settings)
 
             apiKey = ""
-            settingsSummary = "\(selectedProvider.displayName) saved with model \(trimmedModel)."
+            settingsSummary = "已保存 \(selectedProvider.displayName)，Model：\(trimmedModel)。"
         }
     }
 
@@ -118,8 +118,8 @@ final class OnboardingViewModel: ObservableObject {
 
             try self.refreshCandidates()
             self.scanSummary = """
-                Queued \(jobs.count) feed scans, analyzed \(analyzedArticleIDs.count) articles, \
-                assigned \(assignedCount) articles. Candidate topics available: \(self.candidatePreviews.count).
+                已排队 \(jobs.count) 个内容源扫描，分析 \(analyzedArticleIDs.count) 篇文章，\
+                完成 \(assignedCount) 篇文章的主题归类。可查看 \(self.candidatePreviews.count) 个待确认主题。
                 """
         }
     }
@@ -217,10 +217,10 @@ final class OnboardingViewModel: ObservableObject {
     private func refreshFeedSummary() throws {
         let feeds = try environment.repositories.feeds.fetchAll()
         if feeds.isEmpty {
-            feedSummary = "No feeds added yet."
+            feedSummary = "还没有添加内容源。"
         } else {
             let activeCount = feeds.filter { $0.status == .active }.count
-            feedSummary = "\(feeds.count) feeds saved, \(activeCount) active."
+            feedSummary = "已保存 \(feeds.count) 个内容源，\(activeCount) 个正常。"
         }
     }
 
@@ -249,13 +249,13 @@ private enum OnboardingError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .emptyModel:
-            "Model name is required."
+            "请填写 Model。"
         case .emptyAPIKey:
-            "API key is required."
+            "请填写 API Key。"
         case .invalidBaseURL:
-            "Base URL is invalid."
+            "Base URL 无效。"
         case .missingSavedAPIKey:
-            "Save an AI provider and API key before starting the first scan."
+            "请先保存 AI Provider 和 API Key，再开始首次扫描。"
         }
     }
 }
@@ -272,7 +272,7 @@ extension AIProviderKind: Identifiable {
         case .anthropic:
             "Anthropic"
         case .custom:
-            "Custom"
+            "自定义"
         }
     }
 
@@ -290,13 +290,13 @@ private extension FeedStatus {
     var displayName: String {
         switch self {
         case .active:
-            "active"
+            "正常"
         case .error:
-            "error"
+            "异常"
         case .paused:
-            "paused"
+            "已暂停"
         case .noArticles:
-            "no articles"
+            "暂无文章"
         }
     }
 }

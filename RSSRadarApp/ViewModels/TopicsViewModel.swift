@@ -9,7 +9,7 @@ final class TopicsViewModel: ObservableObject {
     @Published var selectedTopicDetail: TopicDetailSnapshot?
     @Published var selectedStatus: TopicStatus?
     @Published var isWorking = false
-    @Published var statusMessage = "Topics are ready."
+    @Published var statusMessage = "主题聚合已就绪。"
     @Published var errorMessage: String?
 
     private let environment: AppEnvironment
@@ -21,10 +21,15 @@ final class TopicsViewModel: ObservableObject {
     }
 
     var filteredTopics: [Topic] {
+        let visibleTopics = topics.filter { $0.status != .archived }
         guard let selectedStatus else {
-            return topics
+            return visibleTopics
         }
-        return topics.filter { $0.status == selectedStatus }
+        return visibleTopics.filter { $0.status == selectedStatus }
+    }
+
+    var visibleTopicCount: Int {
+        topics.filter { $0.status != .archived }.count
     }
 
     func count(for status: TopicStatus) -> Int {
@@ -38,7 +43,7 @@ final class TopicsViewModel: ObservableObject {
                 selectedTopicID = filteredTopics.first?.id
             }
             try loadSelectedTopicDetail()
-            statusMessage = topics.isEmpty ? "No topics have been generated yet." : "\(topics.count) topics saved."
+            statusMessage = topics.isEmpty ? "还没有生成主题。" : "已保存 \(visibleTopicCount) 个可见主题。"
         }
     }
 
@@ -95,7 +100,7 @@ final class TopicsViewModel: ObservableObject {
                 selectedTopicID = updatedTopic.id
             }
             try loadSelectedTopicDetail()
-            statusMessage = "\(updatedTopic.name) is now \(updatedTopic.status.appDisplayName)."
+            statusMessage = "\(updatedTopic.name) 已更新为\(updatedTopic.status.appDisplayName)。"
         }
     }
 

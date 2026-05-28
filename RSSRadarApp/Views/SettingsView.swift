@@ -10,6 +10,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 18) {
                 header
                 aiSettings
+                currentAISettings
                 scanSettings
                 dataSettings
             }
@@ -27,7 +28,7 @@ struct SettingsView: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Settings")
+                Text("通用配置")
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(AppTheme.green)
                 PageStatusBanner(message: viewModel.statusMessage, errorMessage: viewModel.errorMessage)
@@ -38,7 +39,7 @@ struct SettingsView: View {
             Button {
                 viewModel.saveSettings()
             } label: {
-                Label("Save", systemImage: "checkmark")
+                Label("保存", systemImage: "checkmark")
             }
             .buttonStyle(AppPrimaryButtonStyle())
             .disabled(viewModel.isWorking)
@@ -48,7 +49,7 @@ struct SettingsView: View {
     private var aiSettings: some View {
         AppCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("AI")
+                Text("AI 新配置")
                     .font(.headline)
                     .foregroundStyle(AppTheme.green)
 
@@ -58,12 +59,9 @@ struct SettingsView: View {
                             .foregroundStyle(AppTheme.accentGreen)
                             .frame(width: 18)
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("API key required for AI processing")
+                            Text("AI 处理需要 API Key")
                                 .font(.callout.weight(.semibold))
-                            Text("""
-                                RSS feeds can still be scanned. Article analysis, topic generation, \
-                                and brief generation start after you save a provider, model, and API key.
-                                """)
+                            Text("RSS 源仍可扫描。保存服务商、模型和 API Key 后，文章分析、主题生成和情报页生成才会开始。")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -74,31 +72,31 @@ struct SettingsView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
 
-                Picker("Provider", selection: $viewModel.selectedProvider) {
+                Picker("服务商", selection: $viewModel.selectedProvider) {
                     ForEach(AIProviderKind.allCases) { provider in
                         Text(provider.displayName).tag(provider)
                     }
                 }
                 .pickerStyle(.segmented)
 
-                TextField("Base URL", text: $viewModel.baseURLString)
+                TextField("URL", text: $viewModel.baseURLString)
                     .textFieldStyle(.roundedBorder)
 
-                TextField("Model name", text: $viewModel.modelName)
+                TextField("模型", text: $viewModel.modelName)
                     .textFieldStyle(.roundedBorder)
 
                 SecureField(
-                    viewModel.hasSavedAPIKey ? "Replace saved API key" : "API key",
+                    viewModel.hasSavedAPIKey ? "替换已保存 API Key" : "API Key",
                     text: $viewModel.apiKey
                 )
                 .textFieldStyle(.roundedBorder)
 
                 HStack {
-                    Text(viewModel.hasSavedAPIKey ? "API key saved in Keychain." : "No API key saved.")
+                    Text(viewModel.hasSavedAPIKey ? "API Key 已保存在 Keychain。" : "尚未保存 API Key。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Button("Delete API Key") {
+                    Button("删除 API Key") {
                         viewModel.deleteSavedAPIKey()
                     }
                     .buttonStyle(AppSecondaryButtonStyle())
@@ -108,33 +106,48 @@ struct SettingsView: View {
         }
     }
 
-    private var scanSettings: some View {
+    private var currentAISettings: some View {
         AppCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Scanning And Cost")
+                Text("当前配置")
                     .font(.headline)
                     .foregroundStyle(AppTheme.green)
 
-                Picker("Scan mode", selection: $viewModel.scanMode) {
+                SettingsReadOnlyRow(title: "服务商", value: viewModel.savedProviderName)
+                SettingsReadOnlyRow(title: "URL", value: viewModel.savedBaseURLString)
+                SettingsReadOnlyRow(title: "Model", value: viewModel.savedModelName)
+                SettingsReadOnlyRow(title: "API Key", value: viewModel.hasSavedAPIKey ? "已保存到 Keychain" : "未配置")
+            }
+        }
+    }
+
+    private var scanSettings: some View {
+        AppCard {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("扫描与成本")
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.green)
+
+                Picker("扫描模式", selection: $viewModel.scanMode) {
                     ForEach(ScanMode.allCases) { mode in
                         Text(mode.displayName).tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)
 
-                SettingsStepper(title: "Scan interval hours", value: $viewModel.scanIntervalHours, range: 1...168)
-                SettingsStepper(title: "Max articles per scan", value: $viewModel.maxArticlesPerScan, range: 1...1_000)
+                SettingsStepper(title: "扫描间隔小时数", value: $viewModel.scanIntervalHours, range: 1...168)
+                SettingsStepper(title: "单次扫描最大文章数", value: $viewModel.maxArticlesPerScan, range: 1...1_000)
                 SettingsStepper(
-                    title: "Max articles for new feed",
+                    title: "新源最大文章数",
                     value: $viewModel.maxArticlesForNewFeed,
                     range: 1...100
                 )
                 SettingsStepper(
-                    title: "Max topic batch size",
+                    title: "主题批处理最大文章数",
                     value: $viewModel.maxArticlesPerTopicBatch,
                     range: 1...100
                 )
-                SettingsStepper(title: "AI timeout seconds", value: $viewModel.aiRequestTimeoutSeconds, range: 5...600)
+                SettingsStepper(title: "AI 超时秒数", value: $viewModel.aiRequestTimeoutSeconds, range: 5...600)
             }
         }
     }
@@ -142,21 +155,21 @@ struct SettingsView: View {
     private var dataSettings: some View {
         AppCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Data")
+                Text("数据")
                     .font(.headline)
                     .foregroundStyle(AppTheme.green)
 
-                TextField("Database path", text: $viewModel.databasePath)
+                TextField("数据库路径", text: $viewModel.databasePath)
                     .textFieldStyle(.roundedBorder)
 
-                Text("Current changes to the data path are saved as a setting. A new app bootstrap uses it.")
+                Text("数据库路径会保存为配置，并在下次应用启动时生效。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 Button {
                     isShowingClearConfirmation = true
                 } label: {
-                    Label("Clear Local Data", systemImage: "trash")
+                    Label("清空本地数据", systemImage: "trash")
                 }
                 .buttonStyle(AppDangerButtonStyle())
             }
@@ -165,28 +178,28 @@ struct SettingsView: View {
 
     private var clearConfirmationSheet: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Clear Local Data")
+            Text("清空本地数据")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(AppTheme.green)
 
-            Text("This deletes feeds, articles, topics, corrections, processing jobs, and logs from the database.")
+            Text("这会从数据库中删除内容源、文章、主题、纠错记录、处理任务和日志。")
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
-            Toggle("Also delete the saved Keychain API key", isOn: $viewModel.deleteAPIKeyWhenClearing)
+            Toggle("同时删除 Keychain 中保存的 API Key", isOn: $viewModel.deleteAPIKeyWhenClearing)
 
-            TextField("Type CLEAR to confirm", text: $viewModel.clearConfirmationText)
+            TextField("输入 CLEAR 确认", text: $viewModel.clearConfirmationText)
                 .textFieldStyle(.roundedBorder)
 
             HStack {
-                Button("Cancel") {
+                Button("取消") {
                     isShowingClearConfirmation = false
                 }
                 .buttonStyle(AppSecondaryButtonStyle())
 
                 Spacer()
 
-                Button("Clear Data") {
+                Button("清空数据") {
                     viewModel.clearLocalData()
                     if viewModel.errorMessage == nil {
                         isShowingClearConfirmation = false
@@ -216,6 +229,25 @@ private struct SettingsStepper: View {
                     .font(.callout.weight(.semibold))
                     .frame(minWidth: 44, alignment: .trailing)
             }
+        }
+    }
+}
+
+private struct SettingsReadOnlyRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(title)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 80, alignment: .leading)
+            Text(value)
+                .font(.callout)
+                .foregroundStyle(.primary)
+                .textSelection(.enabled)
+            Spacer()
         }
     }
 }

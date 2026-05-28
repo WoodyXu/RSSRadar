@@ -38,7 +38,7 @@ Completed an AI processing reliability milestone focused on provider diagnostics
 - Added structured provider diagnostics for empty assistant content, including status, finish reason, and a bounded response preview.
 - Added AI diagnostic fields to processing failure logs without storing API keys, full request bodies, or article text.
 - Increased article analysis output budget to `8192` tokens.
-- Added a 24,000-character article content budget before prompt rendering to reduce long-input truncation risk.
+- Added an article content budget before prompt rendering to reduce long-input truncation risk; the current budget is 100,000 characters.
 - Tightened article analysis, topic assignment, topic brief, and candidate preview prompts to require raw JSON only and smaller bounded arrays.
 - Removed an unused topic assignment variable that produced a Swift compiler warning.
 
@@ -1447,3 +1447,42 @@ Verification:
 
 - `swift test --filter ProcessingEngineTests` passed with 10 tests and 0 failures.
 - `swift test` passed with 155 tests and 0 failures.
+
+## 2026-05-28 - UI optimization pass
+
+Completed the requested UI optimization from `UI优化.md`.
+
+- Added app icon resources from `icon.png` under `RSSRadarApp/Resources` and set the runtime macOS application icon during app initialization.
+- Removed the Today entry from the main sidebar; the app now opens on `主题聚合`.
+- Localized visible app shell, onboarding, topics, feeds, processing, settings, status labels, and primary action text to Chinese.
+- Updated Topics:
+  - added the requested explanatory copy above the status filter.
+  - renamed statuses to `全部`、`待确认主题`、`跟踪主题`、`忽略主题`.
+  - removed archived status from the visible filter and default visible topic list.
+  - changed candidate actions to `跟踪` and `忽略`.
+- Updated Feeds:
+  - split the page into “添加源” and “当前源管理”.
+  - renamed refresh/delete actions to `手动刷新` and `删除`.
+  - removed the pause/resume button from feed rows.
+- Updated Settings:
+  - split AI settings into an upper “AI 新配置” input area and lower “当前配置” read-only area.
+  - current configuration explicitly shows URL and Model.
+- During verification, `ArticleAnalysisService` prompt content budget was temporarily restored to the then-documented/tested 24,000 characters; this was later superseded by the explicit 100,000-character budget.
+
+Verification:
+
+- `swift build` passed.
+- `make verify` passed: SwiftLint, privacy/security audit, and `swift test` all passed.
+
+## 2026-05-28 - Article analysis prompt budget increase
+
+Completed a focused AI prompt budget update.
+
+- Changed `ArticleAnalysisService` article content prompt budget from 24,000 characters to 100,000 characters.
+- Updated `ArticleAnalysisServiceTests.testAnalyzeArticleTruncatesLongContentBeforePrompting` to use a 120,000-character article and assert truncation at 100,000 characters.
+- Updated architecture and progress documentation to reflect the 100,000-character budget.
+
+Verification:
+
+- `swift test --filter ArticleAnalysisServiceTests/testAnalyzeArticleTruncatesLongContentBeforePrompting` passed.
+- `make verify` passed: SwiftLint, privacy/security audit, and `swift test` all passed.

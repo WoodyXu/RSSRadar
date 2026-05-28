@@ -64,15 +64,15 @@ final class ArticleAnalysisServiceTests: XCTestCase {
         let provider = RecordingAIProvider(response: AIProviderResponse(text: validJSON(), model: "gpt-fixture"))
         let service = ArticleAnalysisService(provider: provider)
         var longArticle = article()
-        longArticle.content = String(repeating: "A", count: 30_000)
+        longArticle.content = String(repeating: "A", count: 120_000)
 
         _ = try await service.analyze(article: longArticle, sourceTitle: "Example Feed", modelName: "gpt-test")
 
         let requests = await provider.allRequests()
         let request = try XCTUnwrap(requests.first)
         let prompt = request.messages[0].content
-        XCTAssertTrue(prompt.contains("[Content truncated by RSSRadar at 24000 characters"))
-        XCTAssertFalse(prompt.contains(String(repeating: "A", count: 25_000)))
+        XCTAssertTrue(prompt.contains("[Content truncated by RSSRadar at 100000 characters"))
+        XCTAssertFalse(prompt.contains(String(repeating: "A", count: 101_000)))
     }
 
     func testAnalyzeArticleRejectsInvalidJSONFixture() async throws {

@@ -2,9 +2,8 @@ import SwiftUI
 
 struct AppRootView: View {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
-    @State private var selection: RSSRadarSection? = .today
+    @State private var selection: RSSRadarSection? = .topics
     @StateObject private var onboardingViewModel: OnboardingViewModel
-    @StateObject private var todayViewModel: TodayViewModel
     @StateObject private var topicsViewModel: TopicsViewModel
     @StateObject private var feedsViewModel: FeedsViewModel
     @StateObject private var processingViewModel: ProcessingViewModel
@@ -12,7 +11,6 @@ struct AppRootView: View {
 
     init(environment: AppEnvironment) {
         _onboardingViewModel = StateObject(wrappedValue: OnboardingViewModel(environment: environment))
-        _todayViewModel = StateObject(wrappedValue: TodayViewModel(environment: environment))
         _topicsViewModel = StateObject(wrappedValue: TopicsViewModel(environment: environment))
         _feedsViewModel = StateObject(wrappedValue: FeedsViewModel(environment: environment))
         _processingViewModel = StateObject(wrappedValue: ProcessingViewModel(environment: environment))
@@ -31,8 +29,6 @@ struct AppRootView: View {
                 .navigationTitle("RSSRadar")
             } detail: {
                 switch selection {
-                case .today:
-                    TodayView(viewModel: todayViewModel)
                 case .topics:
                     TopicsView(viewModel: topicsViewModel)
                 case .feeds:
@@ -44,7 +40,7 @@ struct AppRootView: View {
                 case .settings:
                     SettingsView(viewModel: settingsViewModel)
                 case .none:
-                    TodayView(viewModel: todayViewModel)
+                    TopicsView(viewModel: topicsViewModel)
                 }
             }
         } else {

@@ -22,10 +22,13 @@ final class SettingsViewModel: ObservableObject {
     @Published var aiRequestTimeoutSeconds = 60
     @Published var databasePath = AppEnvironment.defaultDatabasePath()
     @Published var hasSavedAPIKey = false
+    @Published var savedProviderName = "未配置"
+    @Published var savedBaseURLString = "未配置"
+    @Published var savedModelName = "未配置"
     @Published var deleteAPIKeyWhenClearing = false
     @Published var clearConfirmationText = ""
     @Published var isWorking = false
-    @Published var statusMessage = "Settings are ready."
+    @Published var statusMessage = "通用配置已就绪。"
     @Published var errorMessage: String?
 
     private let environment: AppEnvironment
@@ -38,7 +41,7 @@ final class SettingsViewModel: ObservableObject {
         runSync {
             let settings = try environment.repositories.appSettings.fetch()
             apply(settings: settings)
-            statusMessage = "Settings loaded."
+            statusMessage = "配置已加载。"
         }
     }
 
@@ -70,7 +73,7 @@ final class SettingsViewModel: ObservableObject {
 
             apiKey = ""
             apply(settings: settings)
-            statusMessage = "Settings saved."
+            statusMessage = "配置已保存。"
         }
     }
 
@@ -83,7 +86,7 @@ final class SettingsViewModel: ObservableObject {
             settings.keychainAccountIdentifier = nil
             try environment.repositories.appSettings.save(settings)
             hasSavedAPIKey = false
-            statusMessage = "Saved API key deleted."
+            statusMessage = "已删除保存的 API Key。"
         }
     }
 
@@ -122,7 +125,7 @@ final class SettingsViewModel: ObservableObject {
 
             clearConfirmationText = ""
             deleteAPIKeyWhenClearing = false
-            statusMessage = "Local business data cleared."
+            statusMessage = "本地业务数据已清空。"
         }
     }
 
@@ -142,6 +145,9 @@ final class SettingsViewModel: ObservableObject {
         aiRequestTimeoutSeconds = settings.aiRequestTimeoutSeconds
         databasePath = settings.databasePath ?? AppEnvironment.defaultDatabasePath()
         hasSavedAPIKey = settings.keychainAccountIdentifier != nil
+        savedProviderName = settings.aiProvider.displayName
+        savedBaseURLString = settings.baseURL.absoluteString
+        savedModelName = settings.modelName.isEmpty ? "未配置" : settings.modelName
     }
 
     private func runSync(_ operation: () throws -> Void) {
@@ -166,9 +172,9 @@ private enum SettingsViewModelError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidBaseURL:
-            "Base URL is invalid."
+            "Base URL 无效。"
         case .confirmationRequired:
-            "Type CLEAR to confirm local data deletion."
+            "请输入 CLEAR 确认清空本地数据。"
         }
     }
 }

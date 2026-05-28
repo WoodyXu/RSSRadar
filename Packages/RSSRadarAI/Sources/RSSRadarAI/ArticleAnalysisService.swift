@@ -11,7 +11,7 @@ public protocol ArticleAnalyzing: Sendable {
 }
 
 public final class ArticleAnalysisService: ArticleAnalyzing, @unchecked Sendable {
-    private static let maxPromptContentCharacters = 100000
+    private static let maxPromptContentCharacters = 100_000
 
     private let provider: any AIProvider
     private let promptStore: PromptTemplateStore

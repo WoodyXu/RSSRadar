@@ -1,8 +1,16 @@
+import AppKit
 import SwiftUI
 
 @main
 struct RSSRadarApp: App {
     private let bootstrap = AppBootstrap.make()
+
+    init() {
+        if let url = Bundle.module.url(forResource: "icon", withExtension: "png"),
+           let image = NSImage(contentsOf: url) {
+            NSApplication.shared.applicationIconImage = image
+        }
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -21,7 +29,7 @@ private struct BootstrapFailureView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("RSSRadar could not start")
+            Text("RSSRadar 无法启动")
                 .font(.title2.weight(.semibold))
             Text(message)
                 .font(.body)

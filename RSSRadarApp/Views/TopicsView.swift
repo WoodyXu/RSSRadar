@@ -14,13 +14,13 @@ struct TopicsView: View {
                 if viewModel.filteredTopics.isEmpty {
                     EmptyStateCard(
                         systemImage: "rectangle.stack",
-                        title: "No topics in this view",
-                        message: "Topics appear after article analysis and topic assignment jobs finish."
+                        title: "当前视图没有主题",
+                        message: "文章分析和主题归类任务完成后，主题会显示在这里。"
                     ) {
                         Button {
                             viewModel.load()
                         } label: {
-                            Label("Refresh", systemImage: "arrow.clockwise")
+                            Label("刷新", systemImage: "arrow.clockwise")
                         }
                         .buttonStyle(AppPrimaryButtonStyle())
                     }
@@ -58,29 +58,37 @@ struct TopicsView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Topics")
+                Text("主题聚合")
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(AppTheme.green)
                 Spacer()
                 Button {
                     viewModel.load()
                 } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                    Label("刷新", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(AppSecondaryButtonStyle())
             }
+            Text("""
+                待确认主题：AI发现的潜在主题，你可以点击「跟踪」或「忽略」。
+                跟踪主题：AI持续观察跟踪。
+                忽略主题：你不感兴趣的主题。
+                """)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             PageStatusBanner(message: viewModel.statusMessage, errorMessage: viewModel.errorMessage)
         }
     }
 
     private var statusFilter: some View {
-        Picker("Topic status", selection: Binding(
+        Picker("主题状态", selection: Binding(
             get: { viewModel.selectedStatus },
             set: { viewModel.setStatusFilter($0) }
         )) {
-            Text("All (\(viewModel.topics.count))").tag(TopicStatus?.none)
-            ForEach(TopicStatus.allCases, id: \.self) { status in
-                Text("\(status.appDisplayName.capitalized) (\(viewModel.count(for: status)))")
+            Text("全部 (\(viewModel.visibleTopicCount))").tag(TopicStatus?.none)
+            ForEach(TopicStatus.visibleInTopicsTab, id: \.self) { status in
+                Text("\(status.appDisplayName) (\(viewModel.count(for: status)))")
                     .tag(TopicStatus?.some(status))
             }
         }
@@ -117,10 +125,10 @@ private struct TopicListRow: View {
                     }
 
                     HStack(spacing: 14) {
-                        TopicMeta(title: "Updated", value: topic.updatedAt.appShortDate)
+                        TopicMeta(title: "更新", value: topic.updatedAt.appShortDate)
                         TopicMeta(
-                            title: "Importance",
-                            value: topic.importanceScore.map { String(format: "%.0f%%", $0 * 100) } ?? "None"
+                            title: "重要性",
+                            value: topic.importanceScore.map { String(format: "%.0f%%", $0 * 100) } ?? "无"
                         )
                     }
 
@@ -182,7 +190,7 @@ struct TopicDetailView: View {
                     detailHeader(snapshot: snapshot)
 
                     if let currentTakeaway = snapshot.currentTakeaway {
-                        DetailSection(title: "Current Takeaway") {
+                        DetailSection(title: "当前结论") {
                             Text(currentTakeaway)
                                 .font(.body)
                                 .foregroundStyle(.primary)
@@ -190,17 +198,17 @@ struct TopicDetailView: View {
                         }
                     }
 
-                    DetailSection(title: "Latest Changes") {
+                    DetailSection(title: "最近变化") {
                         if snapshot.latestChanges.isEmpty {
-                            EmptyDetailText("No latest changes cached.")
+                            EmptyDetailText("暂无缓存的最近变化。")
                         } else {
                             BulletList(items: snapshot.latestChanges.map(\.text))
                         }
                     }
 
-                    DetailSection(title: "Timeline") {
+                    DetailSection(title: "时间线") {
                         if snapshot.timeline.isEmpty {
-                            EmptyDetailText("No timeline cached.")
+                            EmptyDetailText("暂无缓存的时间线。")
                         } else {
                             VStack(alignment: .leading, spacing: 12) {
                                 ForEach(Array(snapshot.timeline.enumerated()), id: \.offset) { _, item in
@@ -221,9 +229,9 @@ struct TopicDetailView: View {
                         }
                     }
 
-                    DetailSection(title: "Evidence") {
+                    DetailSection(title: "关键证据") {
                         if snapshot.evidence.isEmpty {
-                            EmptyDetailText("No evidence cached.")
+                            EmptyDetailText("暂无缓存的关键证据。")
                         } else {
                             VStack(alignment: .leading, spacing: 12) {
                                 ForEach(Array(snapshot.evidence.enumerated()), id: \.offset) { _, item in
@@ -240,9 +248,9 @@ struct TopicDetailView: View {
                         }
                     }
 
-                    DetailSection(title: "Related Articles") {
+                    DetailSection(title: "相关文章") {
                         if snapshot.relatedArticles.isEmpty {
-                            EmptyDetailText("No related articles found.")
+                            EmptyDetailText("暂无相关文章。")
                         } else {
                             VStack(alignment: .leading, spacing: 12) {
                                 ForEach(snapshot.relatedArticles, id: \.article.id) { item in
@@ -256,7 +264,11 @@ struct TopicDetailView: View {
                                                 .foregroundStyle(.secondary)
                                                 .lineLimit(3)
                                         }
-                                        Text(item.sourceName ?? item.article.url.host() ?? item.article.url.absoluteString)
+                                        Text(
+                                            item.sourceName
+                                                ?? item.article.url.host()
+                                                ?? item.article.url.absoluteString
+                                        )
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
@@ -269,8 +281,8 @@ struct TopicDetailView: View {
             } else {
                 EmptyStateCard(
                     systemImage: "doc.text.magnifyingglass",
-                    title: "Select a topic",
-                    message: "Choose a topic to inspect its brief, evidence, and related articles."
+                    title: "选择一个主题",
+                    message: "选择主题后可查看情报页、关键证据和相关文章。"
                 ) {
                     EmptyView()
                 }
@@ -302,23 +314,23 @@ struct TopicDetailView: View {
             }
 
             HStack(spacing: 14) {
-                TopicMeta(title: "Brief", value: snapshot.briefType.rawValue)
-                TopicMeta(title: "Articles", value: "\(snapshot.relatedArticles.count)")
-                TopicMeta(title: "Updated", value: snapshot.topic.updatedAt.appShortDate)
+                TopicMeta(title: "情报类型", value: snapshot.briefType.appDisplayName)
+                TopicMeta(title: "文章", value: "\(snapshot.relatedArticles.count)")
+                TopicMeta(title: "更新", value: snapshot.topic.updatedAt.appShortDate)
             }
 
             if snapshot.topic.status == .candidate {
                 HStack(spacing: 10) {
                     if let onTrackCandidate {
                         Button(action: onTrackCandidate) {
-                            Label("Track", systemImage: "checkmark.circle")
+                            Label("跟踪", systemImage: "checkmark.circle")
                         }
                         .buttonStyle(AppPrimaryButtonStyle())
                     }
 
                     if let onIgnoreCandidate {
                         Button(action: onIgnoreCandidate) {
-                            Label("Ignore", systemImage: "xmark.circle")
+                            Label("忽略", systemImage: "xmark.circle")
                         }
                         .buttonStyle(AppSecondaryButtonStyle())
                     }
@@ -326,6 +338,23 @@ struct TopicDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private extension TopicBriefType {
+    var appDisplayName: String {
+        switch self {
+        case .full:
+            "完整"
+        case .preview:
+            "预览"
+        }
+    }
+}
+
+private extension TopicStatus {
+    static var visibleInTopicsTab: [TopicStatus] {
+        [.candidate, .active, .ignored]
     }
 }
 

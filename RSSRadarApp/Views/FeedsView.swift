@@ -13,7 +13,7 @@ struct FeedsView: View {
 
                 AppCard {
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("Add Source")
+                        Text("添加源")
                             .font(.headline)
                             .foregroundStyle(AppTheme.green)
 
@@ -26,7 +26,7 @@ struct FeedsView: View {
                                     await viewModel.addManualFeed()
                                 }
                             } label: {
-                                Label("Add", systemImage: "plus")
+                                Label("添加", systemImage: "plus")
                             }
                             .buttonStyle(AppPrimaryButtonStyle())
                             .disabled(viewModel.feedURLString.isEmpty || viewModel.isWorking)
@@ -34,45 +34,53 @@ struct FeedsView: View {
 
                         HStack(spacing: 10) {
                             Button {
-                                isImportingOPML = true
-                            } label: {
-                                Label("Import OPML", systemImage: "square.and.arrow.down")
-                            }
-                            .buttonStyle(AppSecondaryButtonStyle())
+                            isImportingOPML = true
+                        } label: {
+                            Label("导入 OPML", systemImage: "square.and.arrow.down")
+                        }
+                        .buttonStyle(AppSecondaryButtonStyle())
 
-                            Button {
+                        Button {
                                 Task {
                                     await viewModel.refreshAll()
-                                }
-                            } label: {
-                                Label("Refresh All", systemImage: "arrow.clockwise")
                             }
+                        } label: {
+                            Label("全部手动刷新", systemImage: "arrow.clockwise")
+                        }
                             .buttonStyle(AppPrimaryButtonStyle())
                             .disabled(viewModel.feeds.isEmpty || viewModel.isWorking)
                         }
                     }
                 }
 
-                if viewModel.feeds.isEmpty {
-                    EmptyStateCard(
-                        systemImage: "dot.radiowaves.left.and.right",
-                        title: "No RSS sources",
-                        message: """
-                            Import an OPML file or add a feed URL before scanning. \
-                            RSSRadar needs sources before it can find articles and topics.
-                            """
-                    ) {
-                        Button {
-                            isImportingOPML = true
-                        } label: {
-                            Label("Import OPML", systemImage: "square.and.arrow.down")
-                        }
-                        .buttonStyle(AppPrimaryButtonStyle())
-                    }
-                } else {
-                    LazyVStack(spacing: 12) {
-                        ForEach(viewModel.feeds) { feed in
-                            FeedRow(feed: feed, viewModel: viewModel)
+                AppCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("当前源管理")
+                            .font(.headline)
+                            .foregroundStyle(AppTheme.green)
+
+                        if viewModel.feeds.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Label("暂无 RSS 源", systemImage: "dot.radiowaves.left.and.right")
+                                    .font(.callout.weight(.semibold))
+                                    .foregroundStyle(AppTheme.green)
+                                Text("请先导入 OPML 文件或添加 RSS URL。RSSRadar 需要内容源后才能发现文章和主题。")
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                                Button {
+                                    isImportingOPML = true
+                                } label: {
+                                    Label("导入 OPML", systemImage: "square.and.arrow.down")
+                                }
+                                .buttonStyle(AppPrimaryButtonStyle())
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            LazyVStack(spacing: 12) {
+                                ForEach(viewModel.feeds) { feed in
+                                    FeedRow(feed: feed, viewModel: viewModel)
+                                }
+                            }
                         }
                     }
                 }
@@ -92,7 +100,7 @@ struct FeedsView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Feeds")
+            Text("内容源配置")
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(AppTheme.green)
             PageStatusBanner(message: viewModel.statusMessage, errorMessage: viewModel.errorMessage)
@@ -130,16 +138,16 @@ private struct FeedRow: View {
                 }
 
                 HStack(spacing: 18) {
-                    FeedMetric(title: "Last checked", value: feed.lastCheckedAt.appRelativeDate)
-                    FeedMetric(title: "Last success", value: feed.lastSuccessAt.appRelativeDate)
-                    FeedMetric(title: "Progress", value: feed.lastProcessedArticlePublishedAt.appShortDate)
+                    FeedMetric(title: "最近检查", value: feed.lastCheckedAt.appRelativeDate)
+                    FeedMetric(title: "最近成功", value: feed.lastSuccessAt.appRelativeDate)
+                    FeedMetric(title: "处理进度", value: feed.lastProcessedArticlePublishedAt.appShortDate)
                     Spacer()
                 }
 
                 if let error = feed.errorMessage, !error.isEmpty {
                     FeedNotice(
                         systemImage: "exclamationmark.triangle",
-                        title: "Feed needs attention",
+                        title: "内容源需要处理",
                         message: error,
                         tint: AppTheme.danger
                     )
@@ -148,11 +156,8 @@ private struct FeedRow: View {
                 if feed.status == .noArticles {
                     FeedNotice(
                         systemImage: "tray",
-                        title: "No articles found",
-                        message: """
-                            This source was reachable, but it did not expose readable RSS items. \
-                            You can keep it, refresh later, or delete it.
-                            """,
+                        title: "未发现文章",
+                        message: "这个源可以访问，但没有暴露可读取的 RSS 条目。你可以保留、稍后刷新或删除它。",
                         tint: .orange
                     )
                 }
@@ -161,11 +166,8 @@ private struct FeedRow: View {
                 if fallbackCount > 0 {
                     FeedNotice(
                         systemImage: "doc.text.magnifyingglass",
-                        title: "Some article pages could not be extracted",
-                        message: """
-                            \(fallbackCount) articles are available through RSS summaries. \
-                            AI analysis can continue, but those results are based on shorter source text.
-                            """,
+                        title: "部分文章页面无法提取正文",
+                        message: "\(fallbackCount) 篇文章将使用 RSS 摘要继续处理，AI 分析会基于较短的来源文本。",
                         tint: AppTheme.accentGreen
                     )
                 }
@@ -176,21 +178,14 @@ private struct FeedRow: View {
                             await viewModel.refresh(feed: feed)
                         }
                     } label: {
-                        Label("Refresh", systemImage: "arrow.clockwise")
-                    }
-                    .buttonStyle(AppSecondaryButtonStyle())
-
-                    Button {
-                        viewModel.setPaused(feed.status != .paused, feed: feed)
-                    } label: {
-                        Label(feed.status == .paused ? "Resume" : "Pause", systemImage: "pause.circle")
+                        Label("手动刷新", systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(AppSecondaryButtonStyle())
 
                     Button {
                         viewModel.delete(feed: feed)
                     } label: {
-                        Label("Delete", systemImage: "trash")
+                        Label("删除", systemImage: "trash")
                     }
                     .buttonStyle(AppDangerButtonStyle())
                 }

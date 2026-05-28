@@ -27,7 +27,7 @@ struct OnboardingView: View {
                     .frame(width: 56, height: 56)
             }
             .buttonStyle(FloatingActionButtonStyle())
-            .help("Open RSSRadar")
+            .help("打开 RSSRadar")
             .padding(24)
         }
         .task {
@@ -52,16 +52,16 @@ struct OnboardingView: View {
                 .foregroundStyle(.white)
                 .tracking(0)
 
-            Text("Turn RSS feeds into local topic intelligence.")
+            Text("把 RSS 内容源转化为本地主题情报。")
                 .font(.system(size: 21, weight: .regular))
                 .lineSpacing(4)
                 .foregroundStyle(Color.white.opacity(0.72))
                 .tracking(0)
 
             HStack(spacing: 12) {
-                Label("Local data", systemImage: "lock")
-                Label("Your API key", systemImage: "key")
-                Label("No sync", systemImage: "icloud.slash")
+                Label("本地数据", systemImage: "lock")
+                Label("你的 API Key", systemImage: "key")
+                Label("无云同步", systemImage: "icloud.slash")
             }
             .font(.system(size: 13, weight: .semibold))
             .foregroundStyle(.white)
@@ -91,7 +91,7 @@ struct OnboardingView: View {
     }
 
     private var feedCard: some View {
-        OnboardingCard(number: "1", title: "Sources", systemImage: "dot.radiowaves.left.and.right") {
+        OnboardingCard(number: "1", title: "内容源", systemImage: "dot.radiowaves.left.and.right") {
             VStack(alignment: .leading, spacing: 14) {
                 Text(viewModel.feedSummary)
                     .font(.system(size: 14))
@@ -106,7 +106,7 @@ struct OnboardingView: View {
                             await viewModel.addManualFeed()
                         }
                     } label: {
-                        Label("Add", systemImage: "plus")
+                        Label("添加", systemImage: "plus")
                     }
                     .buttonStyle(PrimaryPillButtonStyle())
                     .disabled(viewModel.isWorking)
@@ -115,7 +115,7 @@ struct OnboardingView: View {
                 Button {
                     isImportingOPML = true
                 } label: {
-                    Label("Import OPML", systemImage: "square.and.arrow.down")
+                    Label("导入 OPML", systemImage: "square.and.arrow.down")
                 }
                 .buttonStyle(OutlinePillButtonStyle())
                 .disabled(viewModel.isWorking)
@@ -124,30 +124,30 @@ struct OnboardingView: View {
     }
 
     private var providerCard: some View {
-        OnboardingCard(number: "2", title: "AI Provider", systemImage: "sparkles") {
+        OnboardingCard(number: "2", title: "AI 服务商", systemImage: "sparkles") {
             VStack(alignment: .leading, spacing: 14) {
                 Text(viewModel.settingsSummary)
                     .font(.system(size: 14))
                     .foregroundStyle(Theme.softText)
 
-                Picker("Provider", selection: $viewModel.selectedProvider) {
+                Picker("服务商", selection: $viewModel.selectedProvider) {
                     ForEach(AIProviderKind.allCases) { provider in
                         Text(provider.displayName).tag(provider)
                     }
                 }
                 .pickerStyle(.segmented)
 
-                TextField("Base URL", text: $viewModel.baseURLString)
+                TextField("URL", text: $viewModel.baseURLString)
                     .textFieldStyle(OnboardingTextFieldStyle())
 
-                TextField("Model", text: $viewModel.modelName)
+                TextField("模型", text: $viewModel.modelName)
                     .textFieldStyle(OnboardingTextFieldStyle())
 
                 SecureField("API Key", text: $viewModel.apiKey)
                     .textFieldStyle(OnboardingTextFieldStyle())
 
                 Stepper(value: $viewModel.maxArticlesPerScan, in: 1...500, step: 10) {
-                    Text("Article limit: \(viewModel.maxArticlesPerScan)")
+                    Text("文章上限：\(viewModel.maxArticlesPerScan)")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Theme.text)
                 }
@@ -155,7 +155,7 @@ struct OnboardingView: View {
                 Button {
                     viewModel.saveAISettings()
                 } label: {
-                    Label("Save Provider", systemImage: "checkmark")
+                    Label("保存配置", systemImage: "checkmark")
                 }
                 .buttonStyle(PrimaryPillButtonStyle())
                 .disabled(viewModel.isWorking)
@@ -164,14 +164,14 @@ struct OnboardingView: View {
     }
 
     private var scanCard: some View {
-        OnboardingCard(number: "3", title: "First Scan", systemImage: "play.circle") {
+        OnboardingCard(number: "3", title: "首次扫描", systemImage: "play.circle") {
             HStack(alignment: .center, spacing: 18) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(viewModel.scanSummary)
                         .font(.system(size: 15))
                         .foregroundStyle(Theme.text)
 
-                    Text("Scanning uses the local processing queue and keeps failures isolated.")
+                    Text("扫描会使用本地处理队列，并隔离单个任务失败。")
                         .font(.system(size: 13))
                         .foregroundStyle(Theme.softText)
                 }
@@ -183,7 +183,7 @@ struct OnboardingView: View {
                         await viewModel.startFirstScan()
                     }
                 } label: {
-                    Label(viewModel.isWorking ? "Working" : "Start Scan", systemImage: "arrow.clockwise")
+                    Label(viewModel.isWorking ? "处理中" : "开始扫描", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(PrimaryPillButtonStyle())
                 .disabled(viewModel.isWorking)
@@ -193,7 +193,7 @@ struct OnboardingView: View {
 
     private var candidateSection: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("Candidate Topics")
+            Text("待确认主题")
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(Theme.brandGreen)
 
@@ -263,7 +263,7 @@ private struct CandidatePreviewTile: View {
             HStack {
                 Label("\(preview.articleCount)", systemImage: "doc.text")
                 Spacer()
-                Text(preview.topic.status.rawValue)
+            Text(preview.topic.status.appDisplayName)
             }
             .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(Theme.brandGreen)
@@ -280,11 +280,11 @@ private struct CandidatePreviewTile: View {
 private struct EmptyCandidateView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("No candidate topics yet", systemImage: "tray")
+            Label("暂无待确认主题", systemImage: "tray")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Theme.text)
 
-            Text("Candidate topics appear after article analysis and topic assignment jobs have produced results.")
+            Text("文章分析和主题归类任务产出结果后，待确认主题会显示在这里。")
                 .font(.system(size: 14))
                 .foregroundStyle(Theme.softText)
         }

@@ -8,7 +8,7 @@ final class FeedsViewModel: ObservableObject {
     @Published var feeds: [Feed] = []
     @Published var articlesByFeedID: [String: [Article]] = [:]
     @Published var isWorking = false
-    @Published var statusMessage = "Feeds are ready."
+    @Published var statusMessage = "内容源已就绪。"
     @Published var errorMessage: String?
 
     private let environment: AppEnvironment
@@ -20,7 +20,7 @@ final class FeedsViewModel: ObservableObject {
     func load() {
         runSync {
             try refreshSnapshot()
-            statusMessage = feeds.isEmpty ? noFeedsMessage : "\(feeds.count) feeds saved."
+            statusMessage = feeds.isEmpty ? noFeedsMessage : "已保存 \(feeds.count) 个内容源。"
         }
     }
 
@@ -29,7 +29,7 @@ final class FeedsViewModel: ObservableObject {
             let feed = try await self.environment.manualFeedAddUseCase.addFeed(urlString: self.feedURLString)
             self.feedURLString = ""
             try self.refreshSnapshot()
-            self.statusMessage = "Added \(feed.title)."
+            self.statusMessage = "已添加 \(feed.title)。"
         }
     }
 
@@ -46,8 +46,8 @@ final class FeedsViewModel: ObservableObject {
             let result = try environment.opmlImportUseCase.importOPML(data: data)
             try refreshSnapshot()
             statusMessage = """
-                Imported \(result.importedFeeds.count) feeds. \
-                Skipped \(result.skippedDuplicates.count), errors \(result.errors.count).
+                已导入 \(result.importedFeeds.count) 个内容源。\
+                跳过 \(result.skippedDuplicates.count) 个重复源，错误 \(result.errors.count) 个。
                 """
         }
     }
@@ -62,11 +62,11 @@ final class FeedsViewModel: ObservableObject {
             let articleCountAfter = self.articlesByFeedID[feed.id, default: []].count
             if articleCountAfter == articleCountBefore {
                 self.statusMessage = """
-                    No new articles for \(feed.title). Last scan finished \(Date().appShortDate).
+                    \(feed.title) 暂无新文章。最近一次扫描完成于 \(Date().appShortDate)。
                     """
             } else {
                 self.statusMessage = """
-                    Refreshed \(feed.title). Added \(articleCountAfter - articleCountBefore) articles.
+                    已刷新 \(feed.title)，新增 \(articleCountAfter - articleCountBefore) 篇文章。
                     """
             }
         }
@@ -86,9 +86,9 @@ final class FeedsViewModel: ObservableObject {
             try self.refreshSnapshot()
             let articleCountAfter = self.articlesByFeedID.values.reduce(0) { $0 + $1.count }
             if articleCountAfter == articleCountBefore {
-                self.statusMessage = "No new articles. All active feeds are up to date as of \(Date().appShortDate)."
+                self.statusMessage = "暂无新文章。所有正常内容源已更新至 \(Date().appShortDate)。"
             } else {
-                self.statusMessage = "Refreshed all feeds. Added \(articleCountAfter - articleCountBefore) articles."
+                self.statusMessage = "已刷新全部内容源，新增 \(articleCountAfter - articleCountBefore) 篇文章。"
             }
         }
     }
@@ -100,7 +100,7 @@ final class FeedsViewModel: ObservableObject {
             updatedFeed.updatedAt = Date()
             try environment.repositories.feeds.save(updatedFeed)
             try refreshSnapshot()
-            statusMessage = paused ? "Paused \(feed.title)." : "Resumed \(feed.title)."
+            statusMessage = paused ? "已暂停 \(feed.title)。" : "已恢复 \(feed.title)。"
         }
     }
 
@@ -108,7 +108,7 @@ final class FeedsViewModel: ObservableObject {
         runSync {
             try environment.repositories.feeds.delete(id: feed.id)
             try refreshSnapshot()
-            statusMessage = feeds.isEmpty ? noFeedsMessage : "Deleted \(feed.title)."
+            statusMessage = feeds.isEmpty ? noFeedsMessage : "已删除 \(feed.title)。"
         }
     }
 
@@ -117,7 +117,7 @@ final class FeedsViewModel: ObservableObject {
     }
 
     private var noFeedsMessage: String {
-        "No RSS sources yet. Import OPML or add an RSS URL to start scanning."
+        "暂无 RSS 源。请导入 OPML 或添加 RSS URL 后开始扫描。"
     }
 
     private func refreshSnapshot() throws {

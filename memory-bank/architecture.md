@@ -158,6 +158,15 @@
 - SwiftLint 缓存放在 `.build/swiftlint-cache`，属于可丢弃构建产物。
 - SwiftFormat 和 CI 暂不接入，避免超过 Step 2 范围。
 
+## Post-MVP UI 优化
+
+- 主导航当前只暴露 `主题聚合`、`内容源配置`、`处理日志`、`通用配置` 四个入口；`TodayView` 与 `TodayViewModel` 暂保留在代码中作为已有数据源/页面实现，但不再由侧边栏进入。
+- App 启动时从 `RSSRadarApp/Resources/icon.png` 读取图标并设置 `NSApplication.shared.applicationIconImage`；同时保留 `Assets.xcassets/AppIcon.appiconset`，供后续 Xcode app bundle 集成使用。
+- `TopicsView` 的筛选器只展示 `全部`、`待确认主题`、`跟踪主题`、`忽略主题`，不再展示 archived 状态；列表数据也默认排除 archived topic。候选主题的状态操作仍只委托 `CandidateTopicManagementUseCase`，不直接写库或触发 AI。
+- `FeedsView` 显式分为“添加源”和“当前源管理”两个区域；源管理只保留单源手动刷新与删除入口，暂停/恢复入口从 UI 移除，底层 `FeedStatus.paused` 与 ViewModel 能力暂保留以兼容既有数据和未来需求。
+- `SettingsView` 的 AI 配置拆成“AI 新配置”和“当前配置”两个卡片。新配置负责填写 provider、URL、model 和 API Key；当前配置只展示已保存的 provider、URL、model 和 Keychain API Key 状态，不暴露 secret 明文。
+- App shell、Onboarding、Topics、Feeds、Processing 和 Settings 的用户可见静态文案已本地化为中文；Provider 名称、URL、Model、API Key 等行业术语保留必要英文/缩写。
+
 ## 数据与持久化
 
 - 所有领域对象 ID 统一使用 UUID string。
@@ -271,7 +280,7 @@
 - Prompt 管理统一通过 `PromptTemplateStore` 进入系统。后续文章分析、主题归类和 TopicBrief 生成流程应加载 `PromptTemplateKind` 对应模板并渲染变量，不应在 Processing/UI 中硬编码大段 prompt。
 - 当前 Prompt 渲染是有意保持简单的 `{{variable}}` 字符串替换，复杂模板语言、用户自定义 Prompt 编辑、Prompt 版本迁移和 Prompt 数据库持久化均不属于当前 MVP 阶段。
 - Prompt 输入不得包含 API Key、Authorization header、Bearer token、`x-api-key` 或明显 `sk-` key 形态。`PromptTemplate.render(variables:)` 有保守拒写检查，但调用方仍应只传入文章、主题和分析所需的非 secret 内容。
-- Step 20 后，单篇文章分析由 `ArticleAnalysisService` 负责 Prompt 渲染、Provider 调用、成功 JSON parse、`ArticleContentType` enum 解码、summary 非空校验、`importance_score` 范围校验和字符串数组归一化；它返回领域模型但不持久化，校验失败时抛出 `ArticleAnalysisValidationError`。文章正文进入 Prompt 前会做固定字符预算裁剪，当前上限为 24,000 字符；分析请求使用 `maxTokens = 8192` 与 JSON response format，降低长文导致输出截断或非 JSON 输出的风险。
+- Step 20 后，单篇文章分析由 `ArticleAnalysisService` 负责 Prompt 渲染、Provider 调用、成功 JSON parse、`ArticleContentType` enum 解码、summary 非空校验、`importance_score` 范围校验和字符串数组归一化；它返回领域模型但不持久化，校验失败时抛出 `ArticleAnalysisValidationError`。文章正文进入 Prompt 前会做固定字符预算裁剪，当前上限为 100,000 字符；分析请求使用 `maxTokens = 8192` 与 JSON response format，降低长文导致输出截断或非 JSON 输出的风险。
 - Step 19 后，单篇文章分析持久化由 `ArticleAnalysisUseCase` 负责。它必须在一个 repository transaction 中保存 `ArticleAnalysis` 并更新 `Article.status = analyzed`、`Article.importance_score` 和 `Article.updated_at`，避免分析结果和文章状态不一致。
 - `ArticleAnalysisService` 当前只接受 provider 返回的纯 JSON 文本，不剥离 Markdown code fence 或额外解释文本；Prompt 已要求模型只返回 JSON。这类无效输出会作为校验失败交给 `ProcessingEngine` 的 durable retry/failed 流程处理。
 - `analyze_article` job 的 `model_name` 当前从 `ProcessingJob.payload["model_name"]` 读取。payload 只能保存模型名这类非敏感轻量上下文，不得保存 API Key、完整 AI 请求体或文章全文；文章正文通过 `entity_id` 指向数据库文章读取。

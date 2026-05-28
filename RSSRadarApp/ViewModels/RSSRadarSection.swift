@@ -1,7 +1,6 @@
 import Foundation
 
 enum RSSRadarSection: String, CaseIterable, Identifiable, Hashable {
-    case today
     case topics
     case feeds
     case processing
@@ -13,23 +12,19 @@ enum RSSRadarSection: String, CaseIterable, Identifiable, Hashable {
 
     var title: String {
         switch self {
-        case .today:
-            "Today"
         case .topics:
-            "Topics"
+            "主题聚合"
         case .feeds:
-            "Feeds"
+            "内容源配置"
         case .processing:
-            "Processing"
+            "处理日志"
         case .settings:
-            "Settings"
+            "通用配置"
         }
     }
 
     var systemImage: String {
         switch self {
-        case .today:
-            "sparkles"
         case .topics:
             "rectangle.stack"
         case .feeds:

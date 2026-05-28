@@ -7,7 +7,7 @@ final class ProcessingViewModel: ObservableObject {
     @Published var logs: [OperationLog] = []
     @Published var hasSavedAPIKey = false
     @Published var isWorking = false
-    @Published var statusMessage = "Processing queue is ready."
+    @Published var statusMessage = "处理队列已就绪。"
     @Published var errorMessage: String?
 
     private let environment: AppEnvironment
@@ -27,7 +27,7 @@ final class ProcessingViewModel: ObservableObject {
             _ = try await self.environment.processingEngine.recoverInterruptedJobs()
             await self.environment.processingEngine.runPendingJobs()
             try self.refreshSnapshot()
-            self.statusMessage = "Ran pending jobs."
+            self.statusMessage = "已运行待处理任务。"
         }
     }
 
@@ -36,7 +36,7 @@ final class ProcessingViewModel: ObservableObject {
             _ = try await self.environment.processingEngine.retry(jobID: job.id)
             await self.environment.processingEngine.runPendingJobs()
             try self.refreshSnapshot()
-            self.statusMessage = "Retried \(job.jobType.displayName)."
+            self.statusMessage = "已重试\(job.jobType.displayName)。"
         }
     }
 
@@ -47,8 +47,8 @@ final class ProcessingViewModel: ObservableObject {
         let failedCount = jobs.filter { $0.status == .failed }.count
         let pendingCount = jobs.filter { $0.status == .pending || $0.status == .running }.count
         statusMessage = jobs.isEmpty
-            ? "No processing jobs yet."
-            : "\(pendingCount) pending or running jobs, \(failedCount) failed."
+            ? "暂无处理任务。"
+            : "\(pendingCount) 个等待中或运行中任务，\(failedCount) 个失败任务。"
     }
 
     var failedAIJobs: [ProcessingJob] {

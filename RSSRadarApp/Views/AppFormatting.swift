@@ -3,14 +3,14 @@ import Foundation
 extension Optional where Wrapped == Date {
     var appRelativeDate: String {
         guard let date = self else {
-            return "Never"
+            return "从未"
         }
         return date.appShortDate
     }
 
     var appShortDate: String {
         guard let date = self else {
-            return "None"
+            return "无"
         }
         return date.appShortDate
     }
