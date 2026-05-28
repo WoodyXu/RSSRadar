@@ -230,6 +230,51 @@ final class TopicAssignmentUseCaseTests: XCTestCase {
         XCTAssertEqual(try repositories.topics.fetch(status: .candidate).count, 1)
         XCTAssertNotNil(try repositories.topicArticles.fetch(topicID: existingCandidate.id, articleID: "article-1"))
     }
+
+    func testAssignTopicsReusesExistingActiveTopicWithSameNormalizedName() async throws {
+        let repositories = try makeRepositories()
+        try seedAnalyzedArticle(id: "article-1", repositories: repositories)
+        let existingActive = Topic(
+            id: "topic-active",
+            name: "Claude Code",
+            description: "Tracks Claude Code product updates and adoption.",
+            status: .active,
+            createdAt: fixedDate,
+            updatedAt: fixedDate
+        )
+        try repositories.topics.save(existingActive)
+        let assigner = RecordingTopicAssigner(
+            result: TopicAssignmentResult(
+                assignments: [
+                    TopicAssignment(
+                        articleID: "article-1",
+                        newTopic: NewTopicCandidate(
+                            name: "  Claude   Code  ",
+                            description: "Duplicate active topic."
+                        ),
+                        confidence: 0.84,
+                        reason: "The article centers on Claude Code.",
+                        contributionType: .newEvent
+                    )
+                ],
+                modelName: "gpt-topic"
+            )
+        )
+        let useCase = TopicAssignmentUseCase(repositories: repositories, topicAssigner: assigner)
+
+        let result = try await useCase.assignTopics(
+            articleIDs: ["article-1"],
+            modelName: "gpt-test",
+            assignedAt: fixedDate.addingTimeInterval(10)
+        )
+
+        XCTAssertTrue(result.topicsCreated.isEmpty)
+        XCTAssertEqual(try repositories.topics.fetch(status: .active).count, 1)
+        XCTAssertEqual(try repositories.topics.fetch(status: .candidate).count, 0)
+        XCTAssertNotNil(try repositories.topicArticles.fetch(topicID: existingActive.id, articleID: "article-1"))
+        XCTAssertEqual(result.activeTopicIDsForBriefGeneration, [existingActive.id])
+        XCTAssertEqual(result.topicBriefJobsQueued.count, 1)
+    }
 }
 
 private func seedAnalyzedArticle(id articleID: String, repositories: RSSRadarRepositories) throws {

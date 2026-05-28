@@ -1,5 +1,22 @@
 # Progress
 
+## 2026-05-28 - Entity and dimension anchored topic generation
+
+Reworked topic generation toward reusable entity/dimension anchors instead of narrow one-article issue titles.
+
+- Updated `ArticleAnalysisPrompt.md` so `entities` explicitly cover company, person, product, industry, asset, technology, policy, and event dimensions.
+- Updated article `possible_topics` guidance to return a small subset of reusable entity/dimension anchors rather than copying all entities or producing narrow "entity + impact/change" topics.
+- Updated `TopicAssignmentPrompt.md` so all dimensions are treated equally, new topic names prefer reusable entity/dimension names, existing topics are preferred, and one article may have up to three high-confidence topic assignments.
+- Relaxed `TopicAssignmentService` local validation so industry, asset, and technology topics such as `AI`, `白酒`, `新能源车`, `比特币`, and `RAG` are allowed.
+- Changed local validation to reject meaningless generic names such as `新闻`, `市场`, `公司`, `科技`, `业务`, `news`, `market`, `company`, `technology`, and `business`.
+- Updated `TopicAssignmentUseCase` so AI-proposed new topics reuse existing active or candidate topics with the same normalized name before creating a new candidate.
+- Added tests for allowed dimension topics, rejected meaningless topic names, and active-topic reuse when AI returns an equivalent new topic.
+- Updated `memory-bank/design-document.md` and `memory-bank/architecture.md` to match the new entity/dimension anchored strategy.
+
+Verification:
+
+- `make verify` passed: SwiftLint 0 violations across 108 files, privacy audit passed, and `swift test` passed with 160 tests and 0 failures.
+
 ## 2026-05-27 - Candidate topic Track and Ignore controls
 
 Added candidate topic management controls to the Topics page.
@@ -835,7 +852,7 @@ Completed implementation-plan Step 21.
   - parse assignment JSON
   - validate article IDs, existing topic IDs, confidence range, reason, contribution type, and new topic fields
   - normalize string fields before returning typed assignments
-- Added local broad-topic-name validation for new candidate topics. Broad names such as `AI` are rejected by `TopicAssignmentValidationError` so the durable job retry flow can handle the failure.
+- Added local broad-topic-name validation for new candidate topics. At the time, broad names such as `AI` were rejected by `TopicAssignmentValidationError`; this was later superseded by the 2026-05-28 entity/dimension anchored topic strategy, which allows meaningful industry, asset, and technology dimensions.
 - Supported one article appearing in multiple assignments so a single article can be linked to multiple topics.
 - Added `TopicAssignmentUseCase` in `RSSRadarProcessing` to connect topic assignments to repositories:
   - load up to 20 article analyses per batch
@@ -848,7 +865,7 @@ Completed implementation-plan Step 21.
 - Added `ProcessingEngine.enqueueTopicAssignment(...)`, which splits article IDs into 20-article batches and persists `assign_topics` jobs with non-secret payload values.
 - Extended `ProcessingEngineExecutor` so `assign_topics` jobs can run when a `TopicAssigning` implementation is explicitly injected.
 - Added `Tests/RSSRadarAITests/Fixtures/topic-assignment.json` as the fixed successful AI JSON fixture for topic assignment.
-- Added AI module tests covering existing-topic assignment, new candidate topic assignment, multiple assignments for one article, Prompt request content, broad-topic rejection, and unknown topic rejection.
+- Added AI module tests covering existing-topic assignment, new candidate topic assignment, multiple assignments for one article, Prompt request content, broad-topic rejection, and unknown topic rejection. The broad-topic rejection coverage was later replaced by 2026-05-28 tests for allowed dimension topics and rejected meaningless generic names.
 - Added processing integration tests covering repository-backed topic creation, relationship persistence, article `assigned` status updates, `assign_topics` job execution through `ProcessingEngineExecutor`, and 20-article job batching.
 - Kept Step 22 out of scope:
   - no candidate topic list or detail data source

@@ -176,10 +176,18 @@ public final class TopicAssignmentUseCase: @unchecked Sendable {
         if let alreadyCreated = context.newTopicsByNormalizedName[normalizedName] {
             return alreadyCreated
         }
-        if let existingCandidate = try transaction.topics.fetch(status: .candidate, normalizedName: normalizedName) {
-            context.topicsByID[existingCandidate.id] = existingCandidate
-            context.newTopicsByNormalizedName[normalizedName] = existingCandidate
-            return existingCandidate
+        if let existingAssignableTopic = context.assignableTopicsByNormalizedName[normalizedName] {
+            context.newTopicsByNormalizedName[normalizedName] = existingAssignableTopic
+            return existingAssignableTopic
+        }
+        if let persistedTopic = try fetchPersistedAssignableTopic(
+            normalizedName: normalizedName,
+            transaction: transaction
+        ) {
+            context.topicsByID[persistedTopic.id] = persistedTopic
+            context.assignableTopicsByNormalizedName[normalizedName] = persistedTopic
+            context.newTopicsByNormalizedName[normalizedName] = persistedTopic
+            return persistedTopic
         }
 
         let topic = Topic(
@@ -200,17 +208,31 @@ public final class TopicAssignmentUseCase: @unchecked Sendable {
         return topic
     }
 
-    private static func normalizeName(_ name: String) -> String {
+    fileprivate static func normalizeName(_ name: String) -> String {
         name
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
             .split(whereSeparator: { $0.isWhitespace })
             .joined(separator: " ")
     }
+
+    private func fetchPersistedAssignableTopic(
+        normalizedName: String,
+        transaction: RSSRadarRepositoryTransaction
+    ) throws -> Topic? {
+        if let activeTopic = try transaction.topics.fetch(status: .active, normalizedName: normalizedName) {
+            return activeTopic
+        }
+        if let candidateTopic = try transaction.topics.fetch(status: .candidate, normalizedName: normalizedName) {
+            return candidateTopic
+        }
+        return nil
+    }
 }
 
 private struct TopicAssignmentPersistenceContext {
     var topicsByID: [String: Topic]
+    var assignableTopicsByNormalizedName: [String: Topic]
     var newTopicsByNormalizedName: [String: Topic]
     var savedTopics: [Topic]
     var activeTopicIDsQueuedForBriefs: Set<String>
@@ -218,6 +240,10 @@ private struct TopicAssignmentPersistenceContext {
 
     init(existingTopics: [Topic]) {
         topicsByID = Dictionary(uniqueKeysWithValues: existingTopics.map { ($0.id, $0) })
+        assignableTopicsByNormalizedName = Dictionary(
+            existingTopics.map { (TopicAssignmentUseCase.normalizeName($0.name), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
         newTopicsByNormalizedName = [:]
         savedTopics = []
         activeTopicIDsQueuedForBriefs = []

@@ -44,22 +44,42 @@ final class TopicAssignmentServiceTests: XCTestCase {
         XCTAssertTrue(request.messages[0].content.contains("Return exactly this JSON object"))
     }
 
-    func testAssignTopicsRejectsBroadNewTopicName() async throws {
-        let service = TopicAssignmentService(
-            provider: RecordingTopicAssignmentProvider(
-                response: AIProviderResponse(text: topicJSON(name: "AI"), model: nil)
+    func testAssignTopicsAllowsIndustryAssetAndTechnologyDimensionTopics() async throws {
+        for topicName in ["AI", "白酒", "新能源车", "比特币", "RAG"] {
+            let service = TopicAssignmentService(
+                provider: RecordingTopicAssignmentProvider(
+                    response: AIProviderResponse(text: topicJSON(name: topicName), model: nil)
+                )
             )
-        )
 
-        do {
-            _ = try await service.assignTopics(
+            let result = try await service.assignTopics(
                 analyses: [analysis(articleID: "article-1")],
                 existingTopics: [],
                 modelName: "gpt-test"
             )
-            XCTFail("Expected broad topic name to throw")
-        } catch let error as TopicAssignmentValidationError {
-            XCTAssertEqual(error, .broadTopicName("AI"))
+
+            XCTAssertEqual(result.assignments.first?.newTopic?.name, topicName)
+        }
+    }
+
+    func testAssignTopicsRejectsMeaninglessNewTopicName() async throws {
+        for topicName in ["新闻", "市场", "公司", "科技", "业务", "news", "market", "company", "technology", "business"] {
+            let service = TopicAssignmentService(
+                provider: RecordingTopicAssignmentProvider(
+                    response: AIProviderResponse(text: topicJSON(name: topicName), model: nil)
+                )
+            )
+
+            do {
+                _ = try await service.assignTopics(
+                    analyses: [analysis(articleID: "article-1")],
+                    existingTopics: [],
+                    modelName: "gpt-test"
+                )
+                XCTFail("Expected meaningless topic name to throw: \(topicName)")
+            } catch let error as TopicAssignmentValidationError {
+                XCTAssertEqual(error, .broadTopicName(topicName))
+            }
         }
     }
 

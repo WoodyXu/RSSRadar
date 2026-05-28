@@ -302,36 +302,42 @@ private struct TopicAssignmentOutputItem: Decodable {
 }
 
 private enum TopicSpecificityValidator {
-    private static let broadNames: Set<String> = [
-        "ai",
-        "artificial intelligence",
-        "stocks",
-        "stock",
-        "programming",
-        "macro economy",
-        "macroeconomy",
-        "electric vehicles",
-        "ev",
+    private static let meaninglessNames: Set<String> = [
+        "news",
+        "market",
+        "markets",
+        "company",
+        "companies",
         "technology",
         "tech",
-        "白酒",
-        "股票",
-        "新能源车",
-        "编程",
-        "宏观经济",
-        "人工智能"
+        "business",
+        "businesses",
+        "industry",
+        "industries",
+        "users",
+        "updates",
+        "topic",
+        "topics",
+        "新闻",
+        "市场",
+        "公司",
+        "企业",
+        "科技",
+        "技术",
+        "业务",
+        "行业",
+        "用户",
+        "动态",
+        "主题"
     ]
 
     static func validate(name: String) throws {
         let normalized = name.trimmed().lowercased()
-        if broadNames.contains(normalized) {
+        if meaninglessNames.contains(normalized) {
             throw TopicAssignmentValidationError.broadTopicName(name)
         }
 
-        let asciiWordCount = normalized
-            .split { !$0.isLetter && !$0.isNumber }
-            .count
-        if normalized.allSatisfy(\.isASCII), asciiWordCount <= 1 {
+        if normalized.count <= 1 {
             throw TopicAssignmentValidationError.broadTopicName(name)
         }
     }
