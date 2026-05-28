@@ -4,6 +4,23 @@ import RSSRadarProcessing
 
 @MainActor
 final class TopicsViewModel: ObservableObject {
+    enum BriefExtractionState: Equatable {
+        case extracting
+        case success
+        case failure(String)
+
+        var displayText: String {
+            switch self {
+            case .extracting:
+                "萃取中"
+            case .success:
+                "成功"
+            case let .failure(reason):
+                "失败：\(reason)"
+            }
+        }
+    }
+
     @Published var topics: [Topic] = []
     @Published var selectedTopicID: String?
     @Published var selectedTopicDetail: TopicDetailSnapshot?
@@ -11,6 +28,7 @@ final class TopicsViewModel: ObservableObject {
     @Published var isWorking = false
     @Published var statusMessage = "主题聚合已就绪。"
     @Published var errorMessage: String?
+    @Published var briefExtractionState: BriefExtractionState?
 
     private let environment: AppEnvironment
     private let topicDetailDataSource: TopicDetailDataSource
@@ -43,6 +61,7 @@ final class TopicsViewModel: ObservableObject {
                 selectedTopicID = filteredTopics.first?.id
             }
             try loadSelectedTopicDetail()
+            briefExtractionState = nil
             statusMessage = topics.isEmpty ? "还没有生成主题。" : "已保存 \(visibleTopicCount) 个可见主题。"
         }
     }
@@ -51,6 +70,7 @@ final class TopicsViewModel: ObservableObject {
         runSync {
             selectedTopicID = topicID
             try loadSelectedTopicDetail()
+            briefExtractionState = nil
         }
     }
 
@@ -59,6 +79,7 @@ final class TopicsViewModel: ObservableObject {
             selectedStatus = status
             selectedTopicID = filteredTopics.first?.id
             try loadSelectedTopicDetail()
+            briefExtractionState = nil
         }
     }
 
@@ -79,6 +100,7 @@ final class TopicsViewModel: ObservableObject {
             return
         }
         isWorking = true
+        briefExtractionState = .extracting
         errorMessage = nil
 
         Task { [weak self] in
@@ -90,10 +112,12 @@ final class TopicsViewModel: ObservableObject {
             }
             do {
                 guard let topicID = self.selectedTopicID else {
+                    self.briefExtractionState = .failure("未选择主题")
                     return
                 }
                 guard let topic = try self.environment.repositories.topics.fetch(id: topicID),
                       topic.status == .active else {
+                    self.briefExtractionState = .failure("当前主题不可萃取")
                     return
                 }
                 let settings = try self.environment.repositories.appSettings.fetch()
@@ -104,8 +128,10 @@ final class TopicsViewModel: ObservableObject {
                     modelName: settings.modelName
                 )
                 try self.loadSelectedTopicDetail()
+                self.briefExtractionState = .success
                 self.statusMessage = "\(topic.name) 已完成主题动态总结。"
             } catch {
+                self.briefExtractionState = .failure(AppViewModelErrorMessage.message(from: error))
                 self.errorMessage = AppViewModelErrorMessage.message(from: error)
             }
         }
@@ -137,6 +163,7 @@ final class TopicsViewModel: ObservableObject {
                 selectedTopicID = updatedTopic.id
             }
             try loadSelectedTopicDetail()
+            briefExtractionState = nil
             statusMessage = "\(updatedTopic.name) 已更新为\(updatedTopic.status.appDisplayName)。"
         }
     }

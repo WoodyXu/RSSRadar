@@ -48,7 +48,8 @@ struct TopicsView: View {
                 onTrackCandidate: viewModel.trackSelectedCandidate,
                 onIgnoreCandidate: viewModel.ignoreSelectedCandidate,
                 onExtractBrief: viewModel.extractSelectedTopicBrief,
-                isWorking: viewModel.isWorking
+                isWorking: viewModel.isWorking,
+                briefExtractionState: viewModel.briefExtractionState
             )
                 .frame(minWidth: 500)
         }
@@ -187,6 +188,7 @@ struct TopicDetailView: View {
     var onIgnoreCandidate: (() -> Void)?
     var onExtractBrief: (() -> Void)?
     var isWorking = false
+    var briefExtractionState: TopicsViewModel.BriefExtractionState?
 
     var body: some View {
         ScrollView {
@@ -338,9 +340,16 @@ struct TopicDetailView: View {
                     .buttonStyle(AppPrimaryButtonStyle())
                     .disabled(isWorking)
 
-                    Text("点击总结主题动态。")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                    if let briefExtractionState {
+                        Text(briefExtractionState.displayText)
+                            .font(.callout)
+                            .foregroundStyle(briefExtractionTextColor(for: briefExtractionState))
+                            .lineLimit(2)
+                    } else {
+                        Text("点击总结主题动态。")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
 
@@ -367,6 +376,17 @@ struct TopicDetailView: View {
 
     private func shouldShowBriefSections(_ snapshot: TopicDetailSnapshot) -> Bool {
         snapshot.topic.status == .active
+    }
+
+    private func briefExtractionTextColor(for state: TopicsViewModel.BriefExtractionState) -> Color {
+        switch state {
+        case .extracting:
+            .secondary
+        case .success:
+            AppTheme.accentGreen
+        case .failure:
+            AppTheme.danger
+        }
     }
 }
 
