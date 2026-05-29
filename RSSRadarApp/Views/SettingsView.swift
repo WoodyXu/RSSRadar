@@ -147,7 +147,11 @@ struct SettingsView: View {
                     SettingsNumericField(title: "扫描间隔小时数", value: $viewModel.scanIntervalHours, range: 1...168)
                     SettingsNumericField(title: "单次扫描最大文章数", value: $viewModel.maxArticlesPerScan, range: 1...1_000)
                     SettingsNumericField(title: "新源最大文章数", value: $viewModel.maxArticlesForNewFeed, range: 1...100)
-                    SettingsNumericField(title: "主题批处理最大文章数", value: $viewModel.maxArticlesPerTopicBatch, range: 1...100)
+                    SettingsNumericField(
+                        title: "主题批处理最大文章数",
+                        value: $viewModel.maxArticlesPerTopicBatch,
+                        range: 1...100
+                    )
                     SettingsNumericField(title: "AI 超时秒数", value: $viewModel.aiRequestTimeoutSeconds, range: 5...600)
                 }
             }

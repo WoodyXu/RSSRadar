@@ -161,7 +161,7 @@ final class RepositoryTests: XCTestCase {
         XCTAssertEqual(settings.maxArticlesPerScan, 100)
         XCTAssertEqual(settings.maxArticlesForNewFeed, 20)
         XCTAssertEqual(settings.maxArticlesPerTopicBatch, 20)
-        XCTAssertEqual(settings.aiRequestTimeoutSeconds, 60)
+        XCTAssertEqual(settings.aiRequestTimeoutSeconds, 120)
     }
 
     func testAppSettingsRepositorySavesReadsAndUpsertsDefaultSettings() throws {

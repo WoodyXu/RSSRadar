@@ -76,7 +76,7 @@ public struct AIProviderConfiguration: Equatable, Sendable {
         kind: AIProviderKind,
         baseURL: URL? = nil,
         apiKey: String,
-        timeoutSeconds: TimeInterval = 60
+        timeoutSeconds: TimeInterval = 120
     ) {
         self.kind = kind
         self.baseURL = baseURL ?? Self.defaultBaseURL(for: kind)

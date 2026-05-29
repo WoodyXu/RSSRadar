@@ -22,6 +22,7 @@ final class TopicsViewModel: ObservableObject {
     }
 
     @Published var topics: [Topic] = []
+    @Published var relatedArticleCounts: [String: Int] = [:]
     @Published var selectedTopicID: String?
     @Published var selectedTopicDetail: TopicDetailSnapshot?
     @Published var selectedStatus: TopicStatus?
@@ -139,6 +140,10 @@ final class TopicsViewModel: ObservableObject {
 
     private func refreshTopics() throws {
         topics = try environment.repositories.topics.fetchAll()
+        relatedArticleCounts = Dictionary(
+            grouping: try environment.repositories.topicArticles.fetchAll(),
+            by: \.topicID
+        ).mapValues(\.count)
     }
 
     private func loadSelectedTopicDetail() throws {

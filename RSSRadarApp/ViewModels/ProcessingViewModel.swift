@@ -31,6 +31,13 @@ final class ProcessingViewModel: ObservableObject {
         }
     }
 
+    func refreshStatus() {
+        runSync {
+            try refreshSnapshot()
+            statusMessage = "已刷新当前任务状态。"
+        }
+    }
+
     func retry(job: ProcessingJob) async {
         await run {
             _ = try await self.environment.processingEngine.retry(jobID: job.id)

@@ -806,7 +806,7 @@ MVP 默认建议：
 | 新源最多抓取文章数 | 20 |
 | 单次扫描最多 AI 分析文章数 | 100 |
 | 单次主题生成批处理文章数 | 20 |
-| AI 请求超时 | 60 秒 |
+| AI 请求超时 | 120 秒 |
 
 ---
 
@@ -941,7 +941,7 @@ MVP 使用：
   "scan_interval_hours": 6,
   "max_articles_per_scan": 100,
   "max_articles_for_new_feed": 20,
-  "ai_request_timeout_seconds": 60
+  "ai_request_timeout_seconds": 120
 }
 ```
 

@@ -19,7 +19,7 @@ final class SettingsViewModel: ObservableObject {
     @Published var maxArticlesPerScan = 100
     @Published var maxArticlesForNewFeed = 20
     @Published var maxArticlesPerTopicBatch = 20
-    @Published var aiRequestTimeoutSeconds = 60
+    @Published var aiRequestTimeoutSeconds = 120
     @Published var databasePath = AppEnvironment.defaultDatabasePath()
     @Published var hasSavedAPIKey = false
     @Published var savedProviderName = "未配置"

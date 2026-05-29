@@ -50,7 +50,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         maxArticlesPerScan: Int = 100,
         maxArticlesForNewFeed: Int = 20,
         maxArticlesPerTopicBatch: Int = 20,
-        aiRequestTimeoutSeconds: Int = 60
+        aiRequestTimeoutSeconds: Int = 120
     ) {
         self.aiProvider = aiProvider
         self.baseURL = baseURL

@@ -18,7 +18,7 @@ public final class URLSessionAIProvider: AIProvider, @unchecked Sendable {
         kind: AIProviderKind,
         baseURL: URL? = nil,
         apiKey: String,
-        timeoutSeconds: TimeInterval = 60,
+        timeoutSeconds: TimeInterval = 120,
         session: URLSession = .shared
     ) {
         self.init(

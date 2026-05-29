@@ -79,15 +79,25 @@ struct ProcessingView: View {
 
             Spacer()
 
-            Button {
-                Task {
-                    await viewModel.runPendingJobs()
+            HStack(spacing: 10) {
+                Button {
+                    viewModel.refreshStatus()
+                } label: {
+                    Label("刷新状态", systemImage: "arrow.clockwise")
                 }
-            } label: {
-                Label("运行待处理任务", systemImage: "play.fill")
+                .buttonStyle(AppSecondaryButtonStyle())
+                .disabled(viewModel.isWorking)
+
+                Button {
+                    Task {
+                        await viewModel.runPendingJobs()
+                    }
+                } label: {
+                    Label("运行待处理任务", systemImage: "play.fill")
+                }
+                .buttonStyle(AppPrimaryButtonStyle())
+                .disabled(viewModel.isWorking)
             }
-            .buttonStyle(AppPrimaryButtonStyle())
-            .disabled(viewModel.isWorking)
         }
     }
 

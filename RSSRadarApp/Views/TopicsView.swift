@@ -31,6 +31,7 @@ struct TopicsView: View {
                             ForEach(viewModel.filteredTopics) { topic in
                                 TopicListRow(
                                     topic: topic,
+                                    relatedArticleCount: viewModel.relatedArticleCounts[topic.id, default: 0],
                                     isSelected: topic.id == viewModel.selectedTopicID,
                                     onSelect: { viewModel.select(topicID: topic.id) }
                                 )
@@ -101,6 +102,7 @@ struct TopicsView: View {
 
 private struct TopicListRow: View {
     let topic: Topic
+    let relatedArticleCount: Int
     let isSelected: Bool
     let onSelect: () -> Void
 
@@ -130,8 +132,8 @@ private struct TopicListRow: View {
                     HStack(spacing: 14) {
                         TopicMeta(title: "更新", value: topic.updatedAt.appShortDate)
                         TopicMeta(
-                            title: "重要性",
-                            value: topic.importanceScore.map { String(format: "%.0f%%", $0 * 100) } ?? "无"
+                            title: "相关文章数",
+                            value: "\(relatedArticleCount) 篇"
                         )
                     }
 

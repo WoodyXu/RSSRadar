@@ -1,5 +1,21 @@
 # Progress
 
+## 2026-05-29 - UI refinements and AI timeout default
+
+Updated the current app UI and AI timeout defaults.
+
+- Replaced topic-card importance display in `主题聚合` with related article counts from `topic_articles`.
+- Added a `刷新状态` button next to `运行待处理任务` in `任务状态`; it reloads the latest queue/log/settings snapshot without running jobs.
+- Changed default AI timeout values from 60 seconds to 120 seconds in Core settings, Settings UI state, and AI provider configuration defaults.
+- Added the app logo image to the left of the top `RSS Radar` sidebar brand label.
+- Updated architecture and product docs for the new UI/default behavior.
+
+Verification:
+
+- `swift build` passed.
+- `swift test --filter DomainModelTests --filter RepositoryTests --filter AIProviderTests --filter TopicBriefGenerationUseCaseTests` passed with 44 tests and 0 failures.
+- `make verify` passed: SwiftLint 0 violations across 108 files, privacy audit passed, and `swift test` passed with 160 tests and 0 failures.
+
 ## 2026-05-28 - Manual topic brief extraction in Topics
 
 Updated the Topics tab so TopicBrief generation is explicit and active-topic only.

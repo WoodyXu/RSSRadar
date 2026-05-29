@@ -166,6 +166,10 @@
 - `FeedsView` 显式分为“添加源”和“当前源管理”两个区域；源管理只保留单源手动刷新与删除入口，暂停/恢复入口从 UI 移除，底层 `FeedStatus.paused` 与 ViewModel 能力暂保留以兼容既有数据和未来需求。
 - `SettingsView` 的 AI 配置拆成“AI 新配置”和“当前配置”两个卡片。新配置负责填写 provider、URL、model 和 API Key；当前配置只展示已保存的 provider、URL、model 和 Keychain API Key 状态，不暴露 secret 明文。
 - App shell、Onboarding、Topics、Feeds、Processing 和 Settings 的用户可见静态文案已本地化为中文；Provider 名称、URL、Model、API Key 等行业术语保留必要英文/缩写。
+- 主题聚合列表卡片展示主题状态、更新时间和相关文章数，不再展示 `Topic.importance_score`；相关文章数来自 `topic_articles` 关系数量，由 `TopicsViewModel` 通过 Repository 汇总后传给 SwiftUI。
+- Processing 页面头部在“运行待处理任务”旁提供“刷新状态”按钮；该按钮只重新读取 `processing_jobs`、`operation_logs` 和 Keychain 配置状态，不触发任务运行、重试或 AI 调用。
+- `AppSettings` 与 `AIProviderConfiguration` 的默认 AI timeout 统一为 120 秒；Settings 表单的初始 AI 超时秒数同样为 120 秒，保存后仍从 SQLite 设置动态注入运行时 Provider。
+- App shell 侧边栏顶部显示 `RSSRadarApp/Resources/icon.png` 与 `RSS Radar` 品牌标题；运行时 macOS app icon 仍由 app bootstrap 从同一资源设置。
 
 ## 数据与持久化
 

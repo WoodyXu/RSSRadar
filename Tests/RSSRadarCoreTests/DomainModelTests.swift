@@ -143,7 +143,7 @@ final class DomainModelTests: XCTestCase {
         XCTAssertEqual(settings.maxArticlesPerScan, 100)
         XCTAssertEqual(settings.maxArticlesForNewFeed, 20)
         XCTAssertEqual(settings.maxArticlesPerTopicBatch, 20)
-        XCTAssertEqual(settings.aiRequestTimeoutSeconds, 60)
+        XCTAssertEqual(settings.aiRequestTimeoutSeconds, 120)
         XCTAssertNil(settings.keychainAccountIdentifier)
         XCTAssertEqual(try roundTrip(settings), settings)
         XCTAssertEncodedKeys(settings, contain: ["ai_provider", "base_url", "scan_mode"])

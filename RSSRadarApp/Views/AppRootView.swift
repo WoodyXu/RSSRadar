@@ -20,13 +20,28 @@ struct AppRootView: View {
     var body: some View {
         if hasCompletedOnboarding {
             NavigationSplitView {
-                List(selection: $selection) {
-                    ForEach(RSSRadarSection.allCases) { section in
-                        Label(section.title, systemImage: section.systemImage)
-                            .tag(section)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 10) {
+                        Image("icon", bundle: .module)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 28, height: 28)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        Text("RSS Radar")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(AppTheme.green)
                     }
+                    .padding(.horizontal, 18)
+                    .padding(.top, 16)
+
+                    List(selection: $selection) {
+                        ForEach(RSSRadarSection.allCases) { section in
+                            Label(section.title, systemImage: section.systemImage)
+                                .tag(section)
+                        }
+                    }
+                    .scrollContentBackground(.hidden)
                 }
-                .navigationTitle("RSSRadar")
             } detail: {
                 switch selection {
                 case .topics:
