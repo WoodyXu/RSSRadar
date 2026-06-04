@@ -6,6 +6,7 @@ Do not include Markdown, commentary, explanations, code fences, trailing text, o
 Do not invent facts that are not supported by the article.
 
 Input fields:
+
 - title: {{title}}
 - source: {{source}}
 - published_at: {{published_at}}
@@ -14,6 +15,7 @@ Input fields:
 - content: {{content}}
 
 Input interpretation:
+
 - Prefer content as the primary article body.
 - Use rss_summary as supporting context, especially when content is short, incomplete, or mostly unavailable.
 - Use url only as source metadata. Do not infer unsupported facts from the URL alone.
@@ -33,16 +35,15 @@ Return exactly this JSON object:
 }
 
 Field limits:
+
 - summary:
   - 1 paragraph only.
   - Maximum 80 English words or 160 Chinese characters.
   - Focus on the article's main point, not background context.
-
 - key_points:
   - 0 to 4 items.
   - Each item must be no more than 25 English words or 50 Chinese characters.
   - Use concrete points, not vague summaries.
-
 - entities:
   - 0 to 8 items.
   - Each item should be a canonical entity name.
@@ -57,25 +58,21 @@ Field limits:
     - concrete events, such as diplomatic visits, wars, tournaments, product launches, elections, or major lawsuits.
   - Use canonical names. For example, use "NVIDIA" or "英伟达" consistently with the article language, not both.
   - Avoid generic placeholders such as "market", "users", "companies", "technology", or "business" when a more specific entity or dimension is available.
-
 - claims:
   - 0 to 3 items.
   - Each item must be no more than 30 English words or 60 Chinese characters.
   - Include only claims, arguments, forecasts, or judgments made by the article or quoted sources.
   - Do not add your own opinion.
-
 - events:
   - 0 to 3 items.
   - Each item must be no more than 25 English words or 50 Chinese characters.
   - Include concrete events, launches, announcements, earnings results, policy changes, legal actions, funding rounds, product releases, or leadership changes.
   - Include dates only if the article provides them.
-
 - metrics:
   - 0 to 4 items.
   - Each item must be no more than 25 English words or 50 Chinese characters.
   - Preserve the number, unit, and context.
   - Examples: "$2.1B revenue in Q1 2026", "30% year-over-year growth", "10 million weekly active users".
-
 - content_type:
   - Choose exactly one of:
     - "news"
@@ -83,7 +80,6 @@ Field limits:
     - "opinion"
     - "tutorial"
     - "announcement"
-
 - possible_topics:
   - 0 to 3 items.
   - Each item must be no more than 16 English words or 32 Chinese characters.
@@ -143,9 +139,11 @@ Good possible_topics:
 ["美加墨世界杯"]
 
 Rules:
+
 - Use an importance_score between 0 and 1.
 - Use 0.0 for low-value, repetitive, or barely informative articles.
 - Use 1.0 only for articles with unusually high strategic importance, strong evidence, or major new information.
 - Prefer empty arrays over weak or speculative items.
 - If the article content is too short or mostly unavailable, still return valid JSON, but keep arrays sparse.
 - Never output fields outside the required JSON schema.
+
